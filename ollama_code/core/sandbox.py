@@ -140,21 +140,21 @@ def write_file(filename, content):
                                 file_path.parent.mkdir(parents=True, exist_ok=True)
                             with open(filename, 'w', encoding='utf-8') as f:
                                 f.write(content)
-                            print(f"✅ Created file: {{filename}}")
+                            print(f"Created file: {{filename}}")
                             return f"File {{filename}} created successfully"
                         else:
                             feedback = result.get('feedback', 'File write cancelled by user')
-                            print(f"❌ File write cancelled: {{feedback}}")
+                            print(f"File write cancelled: {{feedback}}")
                             return f"File write cancelled: {{feedback}}"
                         break
             except:
                 pass
             time.sleep(0.1)
         
-        print("❌ Timeout waiting for file write confirmation")
+        print("Timeout waiting for file write confirmation")
         return "Timeout waiting for confirmation"
     except Exception as e:
-        print(f"❌ Failed to create file: {{e}}")
+        print(f"Failed to create file: {{e}}")
         return f"Failed to create file: {{e}}"
 
 def read_file(filename):
@@ -164,7 +164,7 @@ def read_file(filename):
             content = f.read()
         return content
     except Exception as e:
-        print(f"❌ Failed to read file: {{e}}")
+        print(f"Failed to read file: {{e}}")
         return f"Failed to read file: {{e}}"
 
 def list_files(directory="."):
@@ -174,7 +174,7 @@ def list_files(directory="."):
         file_list = [f.name for f in files]
         return file_list
     except Exception as e:
-        print(f"❌ Failed to list files: {{e}}")
+        print(f"Failed to list files: {{e}}")
         return f"Failed to list files: {{e}}"
 
 def bash(command):
@@ -217,26 +217,26 @@ def bash(command):
                                 output += f"\\n[stderr]\\n{{proc_result.stderr}}"
                             
                             if proc_result.returncode != 0:
-                                print(f"❌ Command failed with exit code {{proc_result.returncode}}")
+                                print(f"Command failed with exit code {{proc_result.returncode}}")
                                 return f"Command failed with exit code {{proc_result.returncode}}:\\n{{output}}"
                             
-                            print(f"✅ Command executed successfully")
+                            print(f"Command executed successfully")
                             return output if output else "Command executed successfully (no output)"
                         else:
-                            print(f"❌ Command cancelled by user")
+                            print(f"Command cancelled by user")
                             return "Command cancelled by user"
                         break
             except:
                 pass
             time.sleep(0.1)
         
-        print("❌ Timeout waiting for command confirmation")
+        print("Timeout waiting for command confirmation")
         return "Timeout waiting for confirmation"
     except subprocess.TimeoutExpired:
-        print("❌ Command timed out")
+        print("Command timed out")
         return "Command timed out after 30 seconds"
     except Exception as e:
-        print(f"❌ Failed to execute command: {{e}}")
+        print(f"Failed to execute command: {{e}}")
         return f"Failed to execute command: {{e}}"
 
 # User code starts here
@@ -247,13 +247,18 @@ def bash(command):
                 f.write(full_code)
                 temp_file = f.name
             
-            # Start the subprocess
+            # Start the subprocess with UTF-8 encoding
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            
             process = subprocess.Popen(
                 [sys.executable, temp_file],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                cwd=tempfile.gettempdir()
+                encoding='utf-8',
+                cwd=tempfile.gettempdir(),
+                env=env
             )
             
             output_lines = []
