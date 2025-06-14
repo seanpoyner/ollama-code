@@ -19,6 +19,7 @@ code:
     2. write_file(filename, content): Create or overwrite a file
        - Use this to create ANY file (README.md, index.html, app.py, etc.)
        - Call it like: write_file("README.md", "# My Project\n\nDescription...")
+       - NOTE: The user will be asked to approve each file write before it's created
        
     3. read_file(filename): Read a file's contents
        - Returns the file content as a string

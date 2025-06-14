@@ -158,6 +158,22 @@
     "list_panel_title": {
       "text": "📁 Files in {directory}",
       "// ": "Panel title when listing directory contents"
+    },
+    "write_request": {
+      "text": "📝 [bold yellow]File Write Request:[/bold yellow] {filename}",
+      "// ": "Header for file write confirmation"
+    },
+    "write_approved": {
+      "text": "✅ [green]File write approved[/green]",
+      "// ": "Message when user approves file write"
+    },
+    "write_auto_approved": {
+      "text": "✅ [green]Auto-approving all file writes for this session[/green]",
+      "// ": "Message when user chooses to auto-approve all writes"
+    },
+    "write_cancelled": {
+      "text": "❌ [red]File write cancelled[/red]",
+      "// ": "Message when user cancels file write"
     }
   },
   

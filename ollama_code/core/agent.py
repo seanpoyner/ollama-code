@@ -24,7 +24,6 @@ console = Console()
 class OllamaCodeAgent:
     def __init__(self, model_name, prompts_data=None, ollama_md=None, ollama_config=None, todo_manager=None):
         self.model = model_name
-        self.sandbox = CodeSandbox()
         self.mcp = FastMCPIntegration()
         self.conversation = []
         self.prompts_data = prompts_data
@@ -33,7 +32,10 @@ class OllamaCodeAgent:
         self.todo_manager = todo_manager or TodoManager()
         self.thought_loop = ThoughtLoop(self.todo_manager)
         self.auto_mode = False  # Auto-continue tasks
+        self.auto_approve_writes = False  # Auto-approve file writes
         self.system_prompt = self._build_system_prompt()
+        # Initialize sandbox with confirmation callback
+        self.sandbox = CodeSandbox(write_confirmation_callback=self._confirm_file_write)
     
     def _build_system_prompt(self):
         # Try to load from prompts.yaml first
@@ -59,6 +61,90 @@ class OllamaCodeAgent:
                     full_prompt += f"\n\n## Additional Context: {filename}\n\n{content}"
         
         return full_prompt
+    
+    def _confirm_file_write(self, filename, content):
+        """Confirm file write with user"""
+        if self.auto_approve_writes:
+            return True, None
+        
+        from rich.panel import Panel
+        from rich.syntax import Syntax
+        from rich.prompt import Prompt
+        from pathlib import Path
+        
+        # Determine syntax highlighting based on file extension
+        ext_map = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.ts': 'typescript',
+            '.jsx': 'javascript',
+            '.tsx': 'typescript',
+            '.html': 'html',
+            '.css': 'css',
+            '.json': 'json',
+            '.md': 'markdown',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.sh': 'bash',
+            '.bash': 'bash',
+            '.txt': 'text'
+        }
+        
+        file_ext = Path(filename).suffix.lower()
+        syntax = ext_map.get(file_ext, 'text')
+        
+        # Show file preview
+        console.print(f"\n📝 [bold yellow]File Write Request:[/bold yellow] {filename}")
+        
+        # Truncate content if too long
+        preview_content = content
+        truncated = False
+        if len(content.split('\n')) > 50:
+            lines = content.split('\n')
+            preview_content = '\n'.join(lines[:50])
+            truncated = True
+        elif len(content) > 2000:
+            preview_content = content[:2000]
+            truncated = True
+        
+        # Display content
+        console.print(Panel(
+            Syntax(preview_content, syntax, theme="monokai", line_numbers=True),
+            title=f"📄 {filename}",
+            border_style="yellow"
+        ))
+        
+        if truncated:
+            console.print("[dim]... content truncated for preview ...[/dim]")
+        
+        # Show options
+        console.print("\n[dim]Options: [green]y[/green]es | [red]n[/red]o | [yellow]a[/yellow]ll (auto-approve for session)[/dim]")
+        
+        # Ask for confirmation
+        while True:
+            choice = Prompt.ask(
+                "[cyan]Approve this file write?[/cyan]",
+                choices=["y", "yes", "n", "no", "a", "all"],
+                default="y"
+            )
+            
+            choice = choice.lower()
+            
+            if choice in ["y", "yes"]:
+                return True, None
+            elif choice in ["a", "all"]:
+                self.auto_approve_writes = True
+                console.print("[green]✓ Auto-approving all file writes for this session[/green]")
+                return True, None
+            elif choice in ["n", "no"]:
+                # Ask for feedback
+                feedback = Prompt.ask(
+                    "[yellow]What should be done differently?[/yellow]",
+                    default="skip this file"
+                )
+                return False, feedback
+            
+            console.print("[red]Please enter: y/yes, n/no, or a/all[/red]")
 
     async def connect_mcp_servers(self):
         """Connect to common MCP servers"""
@@ -141,7 +227,7 @@ class OllamaCodeAgent:
         # Add hint for file creation requests
         if any(keyword in user_input.lower() for keyword in ['create', 'write', 'generate']) and \
            any(keyword in user_input.lower() for keyword in ['readme', 'license', 'dockerfile', '.md', '.txt', 'file']):
-            user_input += "\n\n[System: Remember to use the write_file() function to create files. Example: write_file('README.md', '# Content here')]"
+            user_input += "\n\n[System: Remember to use the write_file() function to create files. Example: write_file('README.md', '# Content here'). The user will be asked to approve file writes before they are created.]"
         
         # Add user message
         self.conversation.append({'role': 'user', 'content': user_input})
@@ -237,6 +323,28 @@ class OllamaCodeAgent:
                     console.print(f"\n⚡ [yellow]Executing code block {i}/{len(code_matches)}[/yellow]")
                     result = self.execute_python(code)
                     execution_results.append(result)
+                    
+                    # Check if there was a file write cancellation with feedback
+                    if "File write cancelled:" in result and "skip this file" not in result:
+                        # Extract the feedback and add it to the conversation
+                        feedback_start = result.find("File write cancelled:") + len("File write cancelled:")
+                        feedback = result[feedback_start:].strip()
+                        if feedback:
+                            # Add feedback as a system message for the next response
+                            self.conversation.append({
+                                'role': 'system', 
+                                'content': f"User cancelled file write with feedback: {feedback}"
+                            })
+                            # Trigger a follow-up response
+                            console.print(f"\n💭 [dim]Processing user feedback: {feedback}[/dim]")
+                            follow_up = await self.chat(
+                                "Please address the user's feedback about the file write.",
+                                enable_esc_cancel=enable_esc_cancel,
+                                skip_function_extraction=False
+                            )
+                            # Remove the temporary system message
+                            self.conversation.pop()
+                            
                 except Exception as e:
                     console.print(get_message('errors.execution_failed', function='execute_python', error=e))
                     execution_results.append(f"Error executing code: {e}")
