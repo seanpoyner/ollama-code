@@ -118,6 +118,7 @@ async def main(resume=False):
     
     # Handle --resume flag for conversation history
     if resume:
+        console.print("\n📚 [cyan]Checking for previous conversations...[/cyan]")
         selected_id = conversation_history.display_conversations()
         if selected_id:
             # Load the conversation
@@ -132,6 +133,7 @@ async def main(resume=False):
                 console.print(f"\n✅ [green]Conversation restored with {len(messages)} messages[/green]\n")
         else:
             # Start new conversation
+            console.print("\n🆕 [green]Starting new conversation[/green]\n")
             conversation_history.start_new_conversation()
     
     console.print(get_message('interface.ready'))

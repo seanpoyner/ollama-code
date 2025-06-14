@@ -109,7 +109,16 @@ class ConversationHistory:
                 data["last_updated"] = datetime.now().isoformat()
                 self._save_conversation(data)
                 
-                return data["messages"]
+                # Return messages in the format expected by the agent
+                # Strip timestamps if present
+                formatted_messages = []
+                for msg in data["messages"]:
+                    formatted_messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
+                
+                return formatted_messages
         return []
     
     def list_conversations(self) -> List[Dict]:

@@ -36,6 +36,7 @@ class ThoughtLoop:
     
     def _is_complex_request(self, request: str) -> bool:
         """Determine if a request needs task breakdown"""
+        # Expanded list of complex indicators
         complex_indicators = [
             'create.*application',
             'build.*system',
@@ -46,11 +47,50 @@ class ThoughtLoop:
             'make.*that.*and',
             'multiple.*files',
             'full.*stack',
-            'complete.*solution'
+            'complete.*solution',
+            'write.*and.*test',
+            'create.*web',
+            'create.*gui',
+            'create.*api',
+            'analyze.*and',
+            'debug.*and.*fix',
+            'refactor.*code',
+            'add.*functionality',
+            'integrate.*with'
+        ]
+        
+        # Simple indicators that suggest it's NOT complex
+        simple_indicators = [
+            r'^what\s+is',
+            r'^explain',
+            r'^show\s+me',
+            r'^tell\s+me',
+            r'^list',
+            r'^hello',
+            r'^hi',
+            r'^\s*$'
         ]
         
         request_lower = request.lower()
-        return any(re.search(pattern, request_lower) for pattern in complex_indicators)
+        
+        # Check if it's explicitly simple
+        if any(re.match(pattern, request_lower) for pattern in simple_indicators):
+            return False
+        
+        # Check if it contains complex patterns
+        if any(re.search(pattern, request_lower) for pattern in complex_indicators):
+            return True
+        
+        # Check word count and structure complexity
+        words = request.split()
+        if len(words) > 15:  # Longer requests often need breakdown
+            return True
+        
+        # Check for multiple actions (and, then, also, plus)
+        if any(word in request_lower for word in [' and ', ' then ', ' also ', ' plus ']):
+            return True
+        
+        return False
     
     def _decompose_request(self, request: str) -> List[Dict]:
         """Break down a complex request into tasks"""

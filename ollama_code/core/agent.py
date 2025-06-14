@@ -111,7 +111,7 @@ class OllamaCodeAgent:
             logger.error(f"Code execution failed: {result['error']}")
             return f"Code execution failed: {result['error']}"
 
-    async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False):
+    async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False):
         """Main chat interface with tool execution"""
         # Check if this needs task decomposition
         tasks, task_response = self.thought_loop.process_request(user_input)
@@ -201,27 +201,28 @@ class OllamaCodeAgent:
         # Display AI response first
         console.print(Panel(response, title=get_message('interface.ai_response_title'), border_style="green"))
         
-        # Extract and execute function calls
-        function_calls = extract_function_calls(response)
-        
-        if function_calls:
-            console.print(f"\n🔧 [cyan]Found {len(function_calls)} actions to perform[/cyan]")
-        
+        # Extract and execute function calls (unless skipped)
         execution_results = []
-        for i, call in enumerate(function_calls, 1):
-            try:
-                if call[0] == 'execute_python':
-                    console.print(f"\n⚡ [yellow]Action {i}/{len(function_calls)}:[/yellow] Executing Python code")
-                    result = self.execute_python(call[1])
-                    execution_results.append(result)
-                elif call[0] == 'create_file':
-                    filename, content = call[1]
-                    console.print(f"\n📄 [yellow]Action {i}/{len(function_calls)}:[/yellow] Creating {filename}")
-                    result = create_file(filename, content)
-                    execution_results.append(result)
-            except Exception as e:
-                console.print(get_message('errors.execution_failed', function=call[0], error=e))
-                execution_results.append(f"Error executing {call[0]}: {e}")
+        if not skip_function_extraction:
+            function_calls = extract_function_calls(response)
+            
+            if function_calls:
+                console.print(f"\n🔧 [cyan]Found {len(function_calls)} actions to perform[/cyan]")
+            
+            for i, call in enumerate(function_calls, 1):
+                try:
+                    if call[0] == 'execute_python':
+                        console.print(f"\n⚡ [yellow]Action {i}/{len(function_calls)}:[/yellow] Executing Python code")
+                        result = self.execute_python(call[1])
+                        execution_results.append(result)
+                    elif call[0] == 'create_file':
+                        filename, content = call[1]
+                        console.print(f"\n📄 [yellow]Action {i}/{len(function_calls)}:[/yellow] Creating {filename}")
+                        result = create_file(filename, content)
+                        execution_results.append(result)
+                except Exception as e:
+                    console.print(get_message('errors.execution_failed', function=call[0], error=e))
+                    execution_results.append(f"Error executing {call[0]}: {e}")
         
         # Add results to response for conversation context
         if execution_results:
@@ -269,7 +270,7 @@ class OllamaCodeAgent:
         # Exclude common directories
         excluded_dirs = {'node_modules', '.git', '__pycache__', 'dist', 'build', 
                         'target', 'out', '.next', '.nuxt', 'coverage', '.pytest_cache',
-                        'venv', '.venv', 'env', '.env'}
+                        'venv', '.venv', 'env', '.env', '.ollama-code'}
         
         code_files = [f for f in all_files 
                      if not any(excluded in f.parts for excluded in excluded_dirs)]
@@ -359,8 +360,8 @@ class OllamaCodeAgent:
                 else:
                     analysis_prompt = f"Create an OLLAMA.md file for a new project: {user_context}"
         
-        # Get AI to analyze and create OLLAMA.md (disable ESC cancel for init)
-        response = await self.chat(analysis_prompt, enable_esc_cancel=False)
+        # Get AI to analyze and create OLLAMA.md (disable ESC cancel and function extraction for init)
+        response = await self.chat(analysis_prompt, enable_esc_cancel=False, skip_function_extraction=True)
         
         # Extract the OLLAMA.md content from the response
         # Look for content between ```markdown and ``` or just use the whole response
