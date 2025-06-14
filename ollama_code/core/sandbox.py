@@ -179,9 +179,6 @@ def list_files(directory="."):
 
 def bash(command):
     \"\"\"Execute a bash/shell command\"\"\"
-    # For now, just use subprocess directly with a note about confirmation
-    print(f"[Note: In a full implementation, this would ask for confirmation]")
-    print(f"Executing command: {{command}}")
     
     try:
         import subprocess
