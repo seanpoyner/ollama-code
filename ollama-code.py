@@ -19,6 +19,8 @@ import re
 import sys
 import logging
 import yaml
+import threading
+import time
 from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
@@ -26,6 +28,8 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.table import Table
 from rich.prompt import Prompt
+from rich.live import Live
+from rich.spinner import Spinner
 
 console = Console()
 
@@ -598,6 +602,36 @@ class OllamaCodeAgent:
         ext = Path(filename).suffix.lower()
         return ext_map.get(ext, 'text')
     
+    def _detect_thinking_status(self, response):
+        """Detect what the AI is currently doing based on response content"""
+        response_lower = response.lower()
+        
+        # Check for various thinking patterns
+        if '```python' in response:
+            return "Writing Python code..."
+        elif '```html' in response:
+            return "Creating HTML structure..."
+        elif '```css' in response:
+            return "Styling with CSS..."
+        elif '```javascript' in response or '```js' in response:
+            return "Writing JavaScript..."
+        elif 'analyzing' in response_lower or 'looking at' in response_lower:
+            return "Analyzing the request..."
+        elif 'creating' in response_lower or 'building' in response_lower:
+            return "Building solution..."
+        elif 'let me' in response_lower or "i'll" in response_lower:
+            return "Planning approach..."
+        elif 'first' in response_lower or 'step' in response_lower:
+            return "Breaking down steps..."
+        elif 'error' in response_lower or 'issue' in response_lower:
+            return "Handling issues..."
+        elif 'file:' in response_lower:
+            return "Preparing files..."
+        elif len(response) < 50:
+            return "Starting response..."
+        else:
+            return "Processing..."
+    
     def _extract_function_calls(self, text):
         """Extract function calls from AI response"""
         calls = []
@@ -706,22 +740,101 @@ class OllamaCodeAgent:
         messages = [{'role': 'system', 'content': self.system_prompt}]
         messages.extend(self.conversation)
         
-        # Get AI response
+        # Get AI response with thinking indicators
         response = ""
+        cancelled = False
+        thinking_steps = []
+        
+        # Set up cancellation handling
+        cancel_event = threading.Event()
+        
+        def check_for_esc():
+            """Check for ESC key press in a separate thread"""
+            try:
+                import msvcrt  # Windows
+                while not cancel_event.is_set():
+                    if msvcrt.kbhit():
+                        key = msvcrt.getch()
+                        if key == b'\x1b':  # ESC key
+                            cancel_event.set()
+                            return
+                    time.sleep(0.1)
+            except ImportError:
+                # Unix/Linux
+                import termios, tty, select
+                old_settings = termios.tcgetattr(sys.stdin)
+                try:
+                    tty.setcbreak(sys.stdin.fileno())
+                    while not cancel_event.is_set():
+                        if select.select([sys.stdin], [], [], 0.1)[0]:
+                            key = sys.stdin.read(1)
+                            if ord(key) == 27:  # ESC key
+                                cancel_event.set()
+                                return
+                finally:
+                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        
+        # Start ESC monitoring thread
+        esc_thread = threading.Thread(target=check_for_esc, daemon=True)
+        esc_thread.start()
+        
         try:
-            with console.status("🤔 [yellow]AI is thinking...[/yellow]", spinner="dots"):
+            with Live(console=console, refresh_per_second=4) as live:
+                # Initial thinking status
+                status_text = Text()
+                status_text.append("🤔 ", style="bold yellow")
+                status_text.append("AI is thinking...", style="yellow")
+                status_text.append("\n💡 ", style="dim")
+                status_text.append("Press ESC to cancel", style="dim italic")
+                
+                live.update(Panel(status_text, border_style="yellow", title="Processing"))
+                
+                # Stream the response
                 stream = ollama.chat(
                     model=self.model,
                     messages=messages,
                     stream=True
                 )
                 
+                chunk_count = 0
+                last_update = time.time()
+                
                 for chunk in stream:
-                    response += chunk['message']['content']
+                    if cancel_event.is_set():
+                        cancelled = True
+                        break
+                    
+                    chunk_content = chunk['message']['content']
+                    response += chunk_content
+                    chunk_count += 1
+                    
+                    # Update status periodically
+                    if time.time() - last_update > 0.5:
+                        # Detect what the AI is doing based on content
+                        thinking_status = self._detect_thinking_status(response)
+                        
+                        status_text = Text()
+                        status_text.append(f"🤔 ", style="bold yellow")
+                        status_text.append(thinking_status, style="yellow")
+                        status_text.append(f"\n📝 ", style="dim")
+                        status_text.append(f"Received {chunk_count} chunks...", style="dim")
+                        status_text.append("\n💡 ", style="dim")
+                        status_text.append("Press ESC to cancel", style="dim italic")
+                        
+                        live.update(Panel(status_text, border_style="yellow", title="Processing"))
+                        last_update = time.time()
+                
         except Exception as e:
             console.print(get_message('errors.ollama_communication', error=e))
             console.print(get_message('errors.ollama_hint'))
             return "Error: Could not connect to Ollama"
+        finally:
+            # Stop the ESC monitoring thread
+            cancel_event.set()
+        
+        if cancelled:
+            console.print("❌ [red]Request cancelled by user[/red]")
+            return "Request cancelled"
         
         # Display AI response first
         console.print(Panel(response, title=get_message('interface.ai_response_title'), border_style="green"))
@@ -729,14 +842,19 @@ class OllamaCodeAgent:
         # Extract and execute function calls
         function_calls = self._extract_function_calls(response)
         
+        if function_calls:
+            console.print(f"\n🔧 [cyan]Found {len(function_calls)} actions to perform[/cyan]")
+        
         execution_results = []
-        for call in function_calls:
+        for i, call in enumerate(function_calls, 1):
             try:
                 if call[0] == 'execute_python':
+                    console.print(f"\n⚡ [yellow]Action {i}/{len(function_calls)}:[/yellow] Executing Python code")
                     result = self.execute_python(call[1])
                     execution_results.append(result)
                 elif call[0] == 'create_file':
                     filename, content = call[1]
+                    console.print(f"\n📄 [yellow]Action {i}/{len(function_calls)}:[/yellow] Creating {filename}")
                     result = self.create_file(filename, content)
                     execution_results.append(result)
             except Exception as e:
