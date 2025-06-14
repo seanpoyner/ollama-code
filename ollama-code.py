@@ -632,6 +632,54 @@ class OllamaCodeAgent:
         else:
             return "Processing..."
     
+    def _get_default_init_prompt(self, code_files, user_context, file_list, readme_content, package_info):
+        """Get default init prompt if templates are not available"""
+        if code_files:
+            return f"""Please analyze this codebase and create an OLLAMA.md file that will help you understand the project when working with it in the future.
+
+{f"User-provided context about this project: {user_context}" if user_context else ""}
+
+Project structure:
+{file_list}
+
+{f"README content:\n{readme_content}" if readme_content else "No README found"}
+
+{f"Package files:{package_info}" if package_info else "No package files found"}
+
+Create a comprehensive OLLAMA.md that includes:
+1. Project overview
+2. Key commands (build, test, run)
+3. Architecture and main components
+4. Important conventions and patterns
+5. Development guidelines
+
+{f"Make sure to incorporate this context: '{user_context}'" if user_context else ""}
+
+Format it as a proper markdown file that starts with:
+# OLLAMA.md
+
+This file provides guidance to Ollama Code Agent when working with code in this repository.
+
+Make it specific to this project, not generic."""
+        else:
+            return f"""Create an OLLAMA.md file for a new project based on this description: {user_context}
+
+This is a new/empty project directory. Based on the user's description, create an OLLAMA.md that will help guide development.
+
+Include:
+1. Project overview based on the description
+2. Suggested project structure
+3. Recommended technologies and frameworks
+4. Key commands that will be needed (build, test, run)
+5. Development guidelines and best practices
+
+Format it as a proper markdown file that starts with:
+# OLLAMA.md
+
+This file provides guidance to Ollama Code Agent when working with code in this repository.
+
+Make it specific to what the user described."""
+    
     def _extract_function_calls(self, text):
         """Extract function calls from AI response"""
         calls = []
@@ -932,53 +980,36 @@ class OllamaCodeAgent:
         
         console.print(get_message('init.generating'))
         
-        # Create the analysis prompt
-        if code_files:
-            analysis_prompt = f"""Please analyze this codebase and create an OLLAMA.md file that will help you understand the project when working with it in the future.
-
-{f"User-provided context about this project: {user_context}" if user_context else ""}
-
-Project structure:
-{file_list}
-
-{f"README content:\n{readme_content}" if readme_content else "No README found"}
-
-{f"Package files:{package_info}" if package_info else "No package files found"}
-
-Create a comprehensive OLLAMA.md that includes:
-1. Project overview
-2. Key commands (build, test, run)
-3. Architecture and main components
-4. Important conventions and patterns
-5. Development guidelines
-
-{f"Make sure to incorporate this context: '{user_context}'" if user_context else ""}
-
-Format it as a proper markdown file that starts with:
-# OLLAMA.md
-
-This file provides guidance to Ollama Code Agent when working with code in this repository.
-
-Make it specific to this project, not generic."""
+        # Use templates from prompts.yaml if available
+        if self.prompts_data and 'templates' in self.prompts_data:
+            templates = self.prompts_data['templates']
+            
+            if code_files and 'init_project_with_files' in templates:
+                # Prepare template variables
+                user_context_section = f"User-provided context about this project: {user_context}" if user_context else ""
+                readme_section = f"README content:\n{readme_content}" if readme_content else "No README found"
+                package_section = f"Package files:{package_info}" if package_info else "No package files found"
+                user_context_reminder = f"Make sure to incorporate this context: '{user_context}'" if user_context else ""
+                
+                analysis_prompt = templates['init_project_with_files'].format(
+                    user_context_section=user_context_section,
+                    file_list=file_list,
+                    readme_section=readme_section,
+                    package_section=package_section,
+                    user_context_reminder=user_context_reminder
+                )
+            elif not code_files and 'init_project_empty' in templates:
+                analysis_prompt = templates['init_project_empty'].format(
+                    user_context=user_context
+                )
+            else:
+                # Fallback to hardcoded prompts if templates not available
+                analysis_prompt = self._get_default_init_prompt(code_files, user_context, file_list, 
+                                                               readme_content, package_info)
         else:
-            # Empty directory - use user context to create OLLAMA.md
-            analysis_prompt = f"""Create an OLLAMA.md file for a new project based on this description: {user_context}
-
-This is a new/empty project directory. Based on the user's description, create an OLLAMA.md that will help guide development.
-
-Include:
-1. Project overview based on the description
-2. Suggested project structure
-3. Recommended technologies and frameworks
-4. Key commands that will be needed (build, test, run)
-5. Development guidelines and best practices
-
-Format it as a proper markdown file that starts with:
-# OLLAMA.md
-
-This file provides guidance to Ollama Code Agent when working with code in this repository.
-
-Make it specific to what the user described."""
+            # Fallback to hardcoded prompts if prompts.yaml not loaded
+            analysis_prompt = self._get_default_init_prompt(code_files, user_context, file_list, 
+                                                           readme_content, package_info)
         
         # Get AI to analyze and create OLLAMA.md
         response = await self.chat(analysis_prompt)
