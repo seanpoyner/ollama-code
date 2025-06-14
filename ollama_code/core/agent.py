@@ -11,6 +11,8 @@ from rich.live import Live
 
 from ..core.sandbox import CodeSandbox
 from ..core.file_ops import create_file, read_file, list_files, extract_function_calls
+from ..core.thought_loop import ThoughtLoop
+from ..core.todos import TodoManager
 from ..integrations.mcp import FastMCPIntegration
 from ..utils.messages import get_message
 from ..utils.ui import detect_thinking_status, setup_esc_handler, display_code_execution, display_execution_result
@@ -20,7 +22,7 @@ console = Console()
 
 
 class OllamaCodeAgent:
-    def __init__(self, model_name, prompts_data=None, ollama_md=None, ollama_config=None):
+    def __init__(self, model_name, prompts_data=None, ollama_md=None, ollama_config=None, todo_manager=None):
         self.model = model_name
         self.sandbox = CodeSandbox()
         self.mcp = FastMCPIntegration()
@@ -28,6 +30,9 @@ class OllamaCodeAgent:
         self.prompts_data = prompts_data
         self.ollama_md = ollama_md
         self.ollama_config = ollama_config
+        self.todo_manager = todo_manager or TodoManager()
+        self.thought_loop = ThoughtLoop(self.todo_manager)
+        self.auto_mode = False  # Auto-continue tasks
         self.system_prompt = self._build_system_prompt()
     
     def _build_system_prompt(self):
@@ -106,8 +111,18 @@ class OllamaCodeAgent:
             logger.error(f"Code execution failed: {result['error']}")
             return f"Code execution failed: {result['error']}"
 
-    async def chat(self, user_input, enable_esc_cancel=True):
+    async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False):
         """Main chat interface with tool execution"""
+        # Check if this needs task decomposition
+        tasks, task_response = self.thought_loop.process_request(user_input)
+        
+        if tasks and task_response:
+            # Display task breakdown
+            console.print(Panel(task_response, title="📋 Task Planning", border_style="cyan"))
+            
+            # Add system message about task breakdown
+            user_input = f"{user_input}\n\n[System: I've broken this down into {len(tasks)} tasks. Please work through them systematically.]"
+        
         # Add user message
         self.conversation.append({'role': 'user', 'content': user_input})
         
@@ -214,6 +229,19 @@ class OllamaCodeAgent:
         
         # Add AI response to conversation
         self.conversation.append({'role': 'assistant', 'content': response})
+        
+        # Check if we should continue with next task
+        if (auto_continue or self.auto_mode) and self.thought_loop.should_continue_tasks():
+            # Mark current task as complete if there was one
+            self.thought_loop.mark_current_task_complete()
+            
+            # Get next task
+            next_context = self.thought_loop.get_next_task_context()
+            if next_context:
+                console.print(f"\n{self.thought_loop.get_progress_summary()}")
+                console.print(f"\n🔄 [cyan]Continuing with next task...[/cyan]")
+                # Recursively continue with next task
+                await self.chat(next_context, enable_esc_cancel=enable_esc_cancel, auto_continue=True)
         
         return response
     

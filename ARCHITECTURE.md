@@ -19,10 +19,12 @@ ollama-code/
     │
     ├── core/              # Core functionality
     │   ├── __init__.py
-    │   ├── agent.py       # OllamaCodeAgent class (336 lines)
+    │   ├── agent.py       # OllamaCodeAgent class (~350 lines)
     │   ├── sandbox.py     # Code execution sandbox (138 lines)
     │   ├── file_ops.py    # File operations & extraction (165 lines)
-    │   └── todos.py       # Todo list management (355 lines)
+    │   ├── todos.py       # Todo list management (355 lines)
+    │   ├── conversation.py # Conversation history (~250 lines)
+    │   └── thought_loop.py # Task decomposition & thought loops (~180 lines)
     │
     ├── integrations/      # External integrations
     │   ├── __init__.py
@@ -40,10 +42,12 @@ ollama-code/
 
 ### Core Modules
 
-- **agent.py** (336 lines): Main agent logic, chat interface, init command
+- **agent.py** (~350 lines): Main agent logic, chat interface, init command
 - **sandbox.py** (138 lines): Safe Python code execution (Docker/subprocess)
 - **file_ops.py** (165 lines): File creation, reading, and code extraction
 - **todos.py** (355 lines): Todo list management with persistence
+- **conversation.py** (~250 lines): Conversation history and resume functionality
+- **thought_loop.py** (~180 lines): Complex task decomposition and systematic processing
 
 ### Integration Modules
 

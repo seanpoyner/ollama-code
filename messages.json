@@ -217,7 +217,7 @@
   
   "help": {
     "panel_content": {
-      "text": "Available commands:\n- /init [context] - Analyze codebase and create OLLAMA.md\n  Example: /init this is a web API project using FastAPI\n- /init --force   - Overwrite existing OLLAMA.md\n- /todo           - Show todo list\n- /todo add [priority] <task> - Add a todo (priority: high/medium/low)\n- /todo done <id> - Mark todo as completed\n- /todo start <id> - Start working on a todo\n- /todo next      - Show next todo to work on\n- /tools          - Show available MCP tools\n- /prompts        - List available code prompts\n- /prompt <name>  - Load a specific prompt\n- /help           - Show this help\n- quit            - Exit the program\n\nJust type your request in natural language!\nExamples:\n- \"Write a Python script to scrape a website\"\n- \"Create a data visualization from CSV\"\n- \"Help me debug this code\"",
+      "text": "Available commands:\n- /init [context] - Analyze codebase and create OLLAMA.md\n  Example: /init this is a web API project using FastAPI\n- /init --force   - Overwrite existing OLLAMA.md\n- /auto           - Toggle auto-continue mode for tasks\n- /tasks          - Show current task progress\n- /tools          - Show available MCP tools\n- /prompts        - List available code prompts\n- /prompt <name>  - Load a specific prompt\n- /help           - Show this help\n- quit            - Exit the program\n\nStart with --resume to continue a previous conversation\n\nJust type your request in natural language!\nExamples:\n- \"Write a Python script to scrape a website\"\n- \"Create a web GUI that connects to Ollama\"\n- \"Help me debug this code\"",
       "// ": "Full help text displayed with /help command"
     },
     "panel_title": {

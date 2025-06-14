@@ -4,15 +4,17 @@ A powerful coding assistant powered by Ollama models with code execution capabil
 
 ## Features
 
-- 🤖 Interactive AI coding assistant
+- 🤖 Interactive AI coding assistant with thought loop processing
 - 🐍 Python code execution in sandboxed environment
 - 📄 Automatic file creation from code blocks
 - 🌐 Web GUI creation support
 - 💭 Real-time thinking indicators
 - ⚡ ESC key cancellation support
 - 📚 Project context awareness (OLLAMA.md)
-- 📋 Built-in todo list with persistence
-- 🔄 Resume functionality (--resume flag)
+- 🔄 Conversation history with --resume
+- 🧠 Automatic task decomposition for complex requests
+- 📋 Internal task management for systematic completion
+- 🚀 Auto-continue mode for hands-free operation
 - 🔧 Extensible with MCP tools
 
 ## Installation
@@ -38,7 +40,7 @@ ollama serve
 # Run Ollama Code
 ollama-code
 
-# Resume from last todo
+# Resume previous conversation
 ollama-code --resume
 ```
 
@@ -48,13 +50,9 @@ ollama-code --resume
 - `/init [context]` - Analyze codebase and create OLLAMA.md
 - `/init --force` - Overwrite existing OLLAMA.md
 
-### Todo Management
-- `/todo` - Show todo list
-- `/todo add [priority] <task>` - Add a todo (priority: high/medium/low)
-- `/todo done <id>` - Mark todo as completed
-- `/todo start <id>` - Start working on a todo
-- `/todo next` - Show next todo to work on
-- `/todo clear` - Clear completed todos
+### Task Management
+- `/tasks` - Show current task progress
+- `/auto` - Toggle auto-continue mode
 
 ### Other Commands
 - `/tools` - Show available MCP tools

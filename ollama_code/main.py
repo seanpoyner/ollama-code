@@ -11,6 +11,7 @@ from rich.prompt import Prompt
 
 from .core.agent import OllamaCodeAgent
 from .core.todos import TodoManager, TodoStatus, TodoPriority
+from .core.conversation import ConversationHistory
 from .utils.logging import setup_logging
 from .utils.messages import get_message
 from .utils.config import load_prompts, load_ollama_md, load_ollama_code_config
@@ -105,14 +106,33 @@ async def main(resume=False):
     console.print(get_message('models.model_selected', model_name=model_name))
     logger.info(f"Selected model: {model_name}")
     
-    # Initialize agent with prompts data, OLLAMA.md, and config
-    agent = OllamaCodeAgent(model_name, prompts_data, ollama_md, ollama_config)
-    
-    # Initialize todo manager
+    # Initialize todo manager and conversation history
     todo_manager = TodoManager()
+    conversation_history = ConversationHistory()
+    
+    # Initialize agent with prompts data, OLLAMA.md, and config
+    agent = OllamaCodeAgent(model_name, prompts_data, ollama_md, ollama_config, todo_manager)
     
     # Connect to MCP servers
     await agent.connect_mcp_servers()
+    
+    # Handle --resume flag for conversation history
+    if resume:
+        selected_id = conversation_history.display_conversations()
+        if selected_id:
+            # Load the conversation
+            messages = conversation_history.load_conversation(selected_id)
+            if messages:
+                # Restore conversation to agent
+                agent.conversation = messages
+                
+                # Show summary
+                summary = conversation_history.get_conversation_summary(selected_id)
+                console.print(Panel(summary, title="📚 Resuming Conversation", border_style="blue"))
+                console.print(f"\n✅ [green]Conversation restored with {len(messages)} messages[/green]\n")
+        else:
+            # Start new conversation
+            conversation_history.start_new_conversation()
     
     console.print(get_message('interface.ready'))
     if not ollama_md:  # Only show init hint if no OLLAMA.md exists
@@ -122,16 +142,6 @@ async def main(resume=False):
     console.print(get_message('interface.todo_hint'))
     console.print(get_message('interface.exit_hint') + "\n")
     
-    # Handle --resume flag
-    if resume:
-        next_todo = todo_manager.get_next_todo()
-        if next_todo:
-            console.print(get_message('todos.resume_hint'))
-            todo_manager.display_next_todo()
-            # Start working on the todo
-            todo_manager.update_todo(next_todo.id, status=TodoStatus.IN_PROGRESS.value)
-            # Add the todo content as the first query
-            await agent.chat(f"Help me with: {next_todo.content}")
     
     while True:
         try:
@@ -148,7 +158,29 @@ async def main(resume=False):
                     border_style="blue"
                 ))
                 continue
-            elif user_input.lower().startswith('/todo'):
+            elif user_input.lower() == '/auto':
+                # Toggle auto-continue mode
+                if hasattr(agent, 'auto_mode'):
+                    agent.auto_mode = not agent.auto_mode
+                else:
+                    agent.auto_mode = True
+                
+                status = "enabled" if agent.auto_mode else "disabled"
+                console.print(f"🤖 [cyan]Auto-continue mode {status}[/cyan]")
+                
+                if agent.auto_mode:
+                    console.print("[dim]Tasks will be completed automatically without manual intervention[/dim]")
+                else:
+                    console.print("[dim]Tasks will pause for review after each completion[/dim]")
+                continue
+            elif user_input.lower() == '/tasks':
+                # Show current task progress
+                todo_manager.display_todos()
+                progress = agent.thought_loop.get_progress_summary()
+                if progress:
+                    console.print(f"\n{progress}")
+                continue
+            elif False and user_input.lower().startswith('/todo'):
                 # Parse todo command
                 cmd_info = todo_manager.parse_todo_command(user_input)
                 
@@ -251,7 +283,16 @@ async def main(resume=False):
                 continue
             
             logger.info(f"User query: {user_input}")
-            await agent.chat(user_input)
+            
+            # Save user message to conversation history
+            conversation_history.add_message("user", user_input)
+            
+            # Chat with agent
+            response = await agent.chat(user_input)
+            
+            # Save assistant response to conversation history
+            if response:
+                conversation_history.add_message("assistant", response)
             
         except KeyboardInterrupt:
             console.print("\n" + get_message('app.goodbye'))
