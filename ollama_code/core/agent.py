@@ -34,8 +34,9 @@ class OllamaCodeAgent:
         self.auto_mode = False  # Auto-continue tasks
         self.auto_approve_writes = False  # Auto-approve file writes
         self.system_prompt = self._build_system_prompt()
-        # Initialize sandbox with confirmation callback
+        # Initialize sandbox with confirmation callbacks
         self.sandbox = CodeSandbox(write_confirmation_callback=self._confirm_file_write)
+        self.sandbox.bash_confirmation_callback = self._confirm_bash_command
     
     def _build_system_prompt(self):
         # Try to load from prompts.yaml first
@@ -211,6 +212,99 @@ class OllamaCodeAgent:
         """Tool for listing files"""
         result = list_files(directory)
         return result
+    
+    def bash(self, command):
+        """Tool for executing bash/shell commands"""
+        # Confirm with user first
+        if not self._confirm_bash_command(command):
+            return "Command cancelled by user"
+        
+        import subprocess
+        import os
+        
+        try:
+            # Use shell=True for proper command interpretation
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=os.getcwd()
+            )
+            
+            output = result.stdout
+            if result.stderr:
+                output += f"\n[stderr]\n{result.stderr}"
+            
+            if result.returncode != 0:
+                return f"Command failed with exit code {result.returncode}:\n{output}"
+            
+            return output if output else "Command executed successfully (no output)"
+            
+        except subprocess.TimeoutExpired:
+            return "Command timed out after 30 seconds"
+        except Exception as e:
+            return f"Error executing command: {e}"
+    
+    def _confirm_bash_command(self, command):
+        """Confirm bash command execution with user"""
+        if self.auto_approve_writes:  # Reuse the same flag for now
+            return True
+        
+        from rich.panel import Panel
+        from rich.syntax import Syntax
+        from rich.prompt import Prompt
+        
+        # Show command preview
+        console.print(f"\n{get_message('bash_operations.command_request')}")
+        
+        # Determine if this is a potentially dangerous command
+        dangerous_patterns = [
+            'rm -rf', 'rm -r', 'del /f', 'format', 'fdisk',
+            'dd if=', 'mkfs', '> /dev/', 'sudo rm',
+            ':(){:|:', 'fork bomb'
+        ]
+        
+        is_dangerous = any(pattern in command.lower() for pattern in dangerous_patterns)
+        
+        # Display command with appropriate styling
+        panel_style = "red" if is_dangerous else "yellow"
+        console.print(Panel(
+            Syntax(command, "bash", theme="monokai"),
+            title="🖥️ Command to Execute",
+            border_style=panel_style
+        ))
+        
+        if is_dangerous:
+            console.print(get_message('bash_operations.command_warning'))
+        
+        # Show working directory
+        console.print(f"[dim]Working directory: {os.getcwd()}[/dim]")
+        
+        # Show options
+        console.print("\n[dim]Options: [green]y[/green]es | [red]n[/red]o | [yellow]a[/yellow]ll (auto-approve for session)[/dim]")
+        
+        # Ask for confirmation
+        while True:
+            choice = Prompt.ask(
+                "[cyan]Execute this command?[/cyan]",
+                choices=["y", "yes", "n", "no", "a", "all"],
+                default="n" if is_dangerous else "y"
+            )
+            
+            choice = choice.lower()
+            
+            if choice in ["y", "yes"]:
+                return True
+            elif choice in ["a", "all"]:
+                self.auto_approve_writes = True
+                console.print(get_message('bash_operations.command_auto_approved'))
+                return True
+            elif choice in ["n", "no"]:
+                return False
+            
+            console.print("[red]Please enter: y/yes, n/no, or a/all[/red]")
 
     async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False):
         """Main chat interface with tool execution"""

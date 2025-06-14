@@ -177,6 +177,29 @@
     }
   },
   
+  "bash_operations": {
+    "command_request": {
+      "text": "🔧 [bold yellow]Shell Command Request:[/bold yellow]",
+      "// ": "Header for bash command confirmation"
+    },
+    "command_warning": {
+      "text": "⚠️  [bold red]Warning: This command appears to be potentially dangerous![/bold red]",
+      "// ": "Warning for dangerous commands"
+    },
+    "command_approved": {
+      "text": "✅ [green]Command approved[/green]",
+      "// ": "Message when user approves command"
+    },
+    "command_cancelled": {
+      "text": "❌ [red]Command cancelled[/red]",
+      "// ": "Message when user cancels command"
+    },
+    "command_auto_approved": {
+      "text": "✅ [green]Auto-approving all commands for this session[/green]",
+      "// ": "Message when user chooses to auto-approve all commands"
+    }
+  },
+  
   "prompts": {
     "available_prompts_header": {
       "text": "🔧 Available Code Prompts",

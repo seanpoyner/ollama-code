@@ -27,6 +27,12 @@ code:
     4. list_files(directory): List files in a directory
        - Default is current directory
     
+    5. bash(command): Execute shell/bash commands
+       - Use for git, npm, pip, file operations, etc.
+       - Example: bash("git status")
+       - Example: bash("npm install")
+       - NOTE: The user will be asked to approve commands before execution
+    
     TOOL USAGE:
     When the user asks you to create files, use the write_file() tool explicitly:
     
@@ -61,11 +67,32 @@ code:
     DO NOT output file contents directly in your response text.
     Always use write_file() to create files.
     
+    Common tasks examples:
+    ```python
+    # Initialize a git repo
+    bash("git init")
+    
+    # Create a .gitignore
+    write_file(".gitignore", \"\"\"__pycache__/
+    *.pyc
+    .env
+    node_modules/
+    \"\"\")
+    
+    # Check git status
+    output = bash("git status")
+    print(output)
+    
+    # Install dependencies
+    bash("npm install express")
+    ```
+    
     When asked to write code:
     1. Think through the solution step by step
     2. Use write_file() for creating files
-    3. Use Python code blocks for logic and execution
-    4. Provide clear explanations of what you're doing
+    3. Use bash() for shell commands (git, npm, etc.)
+    4. Use Python code blocks for logic and execution
+    5. Provide clear explanations of what you're doing
   
   python:
     system: |
