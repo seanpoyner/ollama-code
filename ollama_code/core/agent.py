@@ -365,16 +365,65 @@ class OllamaCodeAgent:
         # Extract the OLLAMA.md content from the response
         # Look for content between ```markdown and ``` or just use the whole response
         import re
-        md_match = re.search(r'```(?:markdown|md)?\n(.*?)\n```', response, re.DOTALL)
-        if md_match:
-            ollama_md_content = md_match.group(1)
-        else:
-            # Use the whole response if no code block found
-            ollama_md_content = response
+        import json
+        
+        # Try to find markdown code block - use a more robust approach
+        # First try to find ```markdown or ```md blocks
+        md_matches = list(re.finditer(r'```(?:markdown|md)?\n', response))
+        ollama_md_content = response  # Default to whole response
+        
+        if md_matches:
+            # Find the matching closing ``` for the first markdown block
+            start_pos = md_matches[0].end()
+            # Count nested code blocks to find the correct closing ```
+            block_count = 1
+            pos = start_pos
+            while block_count > 0 and pos < len(response):
+                if response[pos:pos+3] == '```':
+                    # Check if this is opening or closing
+                    # Look back to see if we're at start of line
+                    line_start = response.rfind('\n', 0, pos) + 1
+                    if line_start == pos or response[line_start:pos].strip() == '':
+                        # This is a code fence at start of line
+                        # Check if it's followed by a language identifier (opening) or newline (closing)
+                        next_newline = response.find('\n', pos)
+                        if next_newline == -1:
+                            next_newline = len(response)
+                        fence_content = response[pos+3:next_newline].strip()
+                        if not fence_content or fence_content.isspace():
+                            # Closing fence
+                            block_count -= 1
+                            if block_count == 0:
+                                ollama_md_content = response[start_pos:pos].rstrip()
+                                break
+                        else:
+                            # Opening fence
+                            block_count += 1
+                pos += 1
         
         # Write OLLAMA.md
         with open(ollama_md_path, 'w', encoding='utf-8') as f:
             f.write(ollama_md_content)
+        
+        # Create .ollama-code directory and settings.local.json
+        ollama_code_dir = Path.cwd() / '.ollama-code'
+        ollama_code_dir.mkdir(exist_ok=True)
+        
+        settings_path = ollama_code_dir / 'settings.local.json'
+        if not settings_path.exists():
+            # Create default settings
+            default_settings = {
+                "model": self.model,
+                "temperature": 0.7,
+                "max_tokens": 4096,
+                "project_type": "development_testing",
+                "auto_continue": False
+            }
+            
+            with open(settings_path, 'w', encoding='utf-8') as f:
+                json.dump(default_settings, f, indent=2)
+            
+            console.print(f"📁 [green]Created .ollama-code/settings.local.json[/green]")
         
         console.print(get_message('init.success'))
         logger.info(f"Created OLLAMA.md in {Path.cwd()}")
