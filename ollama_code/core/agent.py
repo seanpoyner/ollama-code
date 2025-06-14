@@ -10,7 +10,7 @@ from rich.text import Text
 from rich.live import Live
 
 from ..core.sandbox import CodeSandbox
-from ..core.file_ops import create_file, read_file, list_files, extract_function_calls
+from ..core.file_ops import create_file, read_file, list_files
 from ..core.thought_loop import ThoughtLoop
 from ..core.todos import TodoManager
 from ..integrations.mcp import FastMCPIntegration
@@ -110,6 +110,21 @@ class OllamaCodeAgent:
         else:
             logger.error(f"Code execution failed: {result['error']}")
             return f"Code execution failed: {result['error']}"
+    
+    def write_file(self, filename, content):
+        """Tool for writing files"""
+        result = create_file(filename, content)
+        return result
+    
+    def read_file_tool(self, filename):
+        """Tool for reading files"""
+        result = read_file(filename)
+        return result
+    
+    def list_files_tool(self, directory="."):
+        """Tool for listing files"""
+        result = list_files(directory)
+        return result
 
     async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False):
         """Main chat interface with tool execution"""
@@ -126,7 +141,7 @@ class OllamaCodeAgent:
         # Add hint for file creation requests
         if any(keyword in user_input.lower() for keyword in ['create', 'write', 'generate']) and \
            any(keyword in user_input.lower() for keyword in ['readme', 'license', 'dockerfile', '.md', '.txt', 'file']):
-            user_input += "\n\n[System: Remember to use code blocks with file indicators for file creation. For example: ```markdown\\n<!-- File: README.md -->\\nContent here...\\n```]"
+            user_input += "\n\n[System: Remember to use the write_file() function to create files. Example: write_file('README.md', '# Content here')]"
         
         # Add user message
         self.conversation.append({'role': 'user', 'content': user_input})
@@ -206,28 +221,25 @@ class OllamaCodeAgent:
         # Display AI response first
         console.print(Panel(response, title=get_message('interface.ai_response_title'), border_style="green"))
         
-        # Extract and execute function calls (unless skipped)
+        # Extract and execute Python code blocks (unless skipped)
         execution_results = []
         if not skip_function_extraction:
-            function_calls = extract_function_calls(response)
+            # Simple extraction - just find Python code blocks
+            import re
+            code_pattern = r'```python\n(.*?)\n```'
+            code_matches = re.findall(code_pattern, response, re.DOTALL)
             
-            if function_calls:
-                console.print(f"\n🔧 [cyan]Found {len(function_calls)} actions to perform[/cyan]")
+            if code_matches:
+                console.print(f"\n🔧 [cyan]Found {len(code_matches)} code blocks to execute[/cyan]")
             
-            for i, call in enumerate(function_calls, 1):
+            for i, code in enumerate(code_matches, 1):
                 try:
-                    if call[0] == 'execute_python':
-                        console.print(f"\n⚡ [yellow]Action {i}/{len(function_calls)}:[/yellow] Executing Python code")
-                        result = self.execute_python(call[1])
-                        execution_results.append(result)
-                    elif call[0] == 'create_file':
-                        filename, content = call[1]
-                        console.print(f"\n📄 [yellow]Action {i}/{len(function_calls)}:[/yellow] Creating {filename}")
-                        result = create_file(filename, content)
-                        execution_results.append(result)
+                    console.print(f"\n⚡ [yellow]Executing code block {i}/{len(code_matches)}[/yellow]")
+                    result = self.execute_python(code)
+                    execution_results.append(result)
                 except Exception as e:
-                    console.print(get_message('errors.execution_failed', function=call[0], error=e))
-                    execution_results.append(f"Error executing {call[0]}: {e}")
+                    console.print(get_message('errors.execution_failed', function='execute_python', error=e))
+                    execution_results.append(f"Error executing code: {e}")
         
         # Add results to response for conversation context
         if execution_results:

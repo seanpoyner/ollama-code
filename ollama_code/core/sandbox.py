@@ -90,8 +90,55 @@ class CodeSandbox:
         """Execute Python using subprocess"""
         temp_file = None
         try:
+            # Inject file operations into the code context
+            setup_code = """
+import os
+import sys
+from pathlib import Path
+
+# Change to user's working directory
+os.chdir(r'""" + str(Path.cwd()) + """')
+
+def write_file(filename, content):
+    \"\"\"Write content to a file\"\"\"
+    try:
+        file_path = Path(filename)
+        if file_path.parent != Path('.'):
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"✅ Created file: {filename}")
+        return f"File {filename} created successfully"
+    except Exception as e:
+        print(f"❌ Failed to create file: {e}")
+        return f"Failed to create file: {e}"
+
+def read_file(filename):
+    \"\"\"Read content from a file\"\"\"
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return content
+    except Exception as e:
+        print(f"❌ Failed to read file: {e}")
+        return f"Failed to read file: {e}"
+
+def list_files(directory="."):
+    \"\"\"List files in a directory\"\"\"
+    try:
+        files = list(Path(directory).iterdir())
+        file_list = [f.name for f in files]
+        return file_list
+    except Exception as e:
+        print(f"❌ Failed to list files: {e}")
+        return f"Failed to list files: {e}"
+
+# User code starts here
+"""
+            full_code = setup_code + code
+            
             with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
-                f.write(code)
+                f.write(full_code)
                 temp_file = f.name
             
             # Use a try-except for timeout parameter compatibility

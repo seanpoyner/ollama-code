@@ -9,73 +9,62 @@ code:
   
   execution_rules: |
     
-    IMPORTANT CODE EXECUTION RULES:
-    - When you write Python code in ```python blocks, it will be automatically executed
-    - DO NOT call execute_python() from within your code blocks - this function doesn't exist in the execution context
-    - Just write the Python code directly in code blocks and it will run
-    - Each code block runs in its own isolated environment
+    IMPORTANT: You have access to the following tools:
     
-    Available capabilities:
-    - Write Python code in ```python blocks (automatically executed)
-    - Create files automatically by using code blocks with file indicators
-    - read_file(filename): Read files  
-    - list_files(directory): List files in directory
+    1. execute_python(code): Execute Python code
+       - Use this by writing code in ```python blocks
+       - Code executes automatically
+       - Each block runs in isolated environment
     
-    FILE CREATION:
-    IMPORTANT: When the user asks you to create any file (including documentation files like README.md, LICENSE, etc.), 
-    you MUST use a code block with a file indicator comment. DO NOT output file content directly in your response.
+    2. write_file(filename, content): Create or overwrite a file
+       - Use this to create ANY file (README.md, index.html, app.py, etc.)
+       - Call it like: write_file("README.md", "# My Project\n\nDescription...")
+       
+    3. read_file(filename): Read a file's contents
+       - Returns the file content as a string
+       
+    4. list_files(directory): List files in a directory
+       - Default is current directory
     
-    For Markdown/Documentation files:
-    ```markdown
-    <!-- File: README.md -->
-    # Project Title
-    Your content here...
-    ```
+    TOOL USAGE:
+    When the user asks you to create files, use the write_file() tool explicitly:
     
-    When creating multi-file applications (like web GUIs), files are automatically created from code blocks:
-    
-    For HTML files:
-    ```html
-    <!-- File: index.html -->
-    <!DOCTYPE html>
-    <html>...
-    ```
-    
-    For CSS files:
-    ```css
-    /* File: styles.css */
-    body { ... }
-    ```
-    
-    For JavaScript files:
-    ```javascript
-    // File: script.js
-    const app = ...
-    ```
-    
-    For Python files to save (not execute):
     ```python
-    # File: app.py
-    from flask import Flask...
+    # Creating a README.md
+    write_file("README.md", """# Project Title
+    
+    ## Description
+    This is my project...
+    """)
     ```
     
-    For JSON files:
-    ```json
-    // File: config.json
-    { "setting": "value" }
+    For multi-file applications:
+    ```python
+    # Create multiple files
+    write_file("index.html", """<!DOCTYPE html>
+    <html>
+    <head>
+        <title>My App</title>
+    </head>
+    <body>
+        <h1>Hello World</h1>
+    </body>
+    </html>""")
+    
+    write_file("styles.css", """body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+    }""")
     ```
     
-    Files without a filename comment will be auto-named (index.html, styles.css, script.js, etc.)
+    DO NOT output file contents directly in your response text.
+    Always use write_file() to create files.
     
     When asked to write code:
     1. Think through the solution step by step
-    2. Write clean, well-commented code
-    3. Python blocks without # File: will execute automatically
-    4. Other code blocks create files automatically
-    
-    Example - Creating a web GUI:
-    When asked to create a web application, provide the HTML, CSS, and JavaScript in separate code blocks.
-    Each block will automatically create the corresponding file.
+    2. Use write_file() for creating files
+    3. Use Python code blocks for logic and execution
+    4. Provide clear explanations of what you're doing
   
   python:
     system: |
