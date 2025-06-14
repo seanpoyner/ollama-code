@@ -781,11 +781,12 @@ class OllamaCodeAgent:
         code_files = [f for f in all_files 
                      if not any(excluded in f.parts for excluded in excluded_dirs)]
         
-        if not code_files:
+        if code_files:
+            console.print(get_message('init.analyzing_files', count=len(code_files)))
+        elif not user_context:
+            # Only return if no files AND no user context
             console.print(get_message('init.no_files'))
             return
-        
-        console.print(get_message('init.analyzing_files', count=len(code_files)))
         
         # Prepare analysis prompt
         file_list = "\n".join([f"- {f.relative_to(Path.cwd())}" for f in code_files[:50]])  # Limit to 50 files
@@ -814,7 +815,8 @@ class OllamaCodeAgent:
         console.print(get_message('init.generating'))
         
         # Create the analysis prompt
-        analysis_prompt = f"""Please analyze this codebase and create an OLLAMA.md file that will help you understand the project when working with it in the future.
+        if code_files:
+            analysis_prompt = f"""Please analyze this codebase and create an OLLAMA.md file that will help you understand the project when working with it in the future.
 
 {f"User-provided context about this project: {user_context}" if user_context else ""}
 
@@ -840,6 +842,25 @@ Format it as a proper markdown file that starts with:
 This file provides guidance to Ollama Code Agent when working with code in this repository.
 
 Make it specific to this project, not generic."""
+        else:
+            # Empty directory - use user context to create OLLAMA.md
+            analysis_prompt = f"""Create an OLLAMA.md file for a new project based on this description: {user_context}
+
+This is a new/empty project directory. Based on the user's description, create an OLLAMA.md that will help guide development.
+
+Include:
+1. Project overview based on the description
+2. Suggested project structure
+3. Recommended technologies and frameworks
+4. Key commands that will be needed (build, test, run)
+5. Development guidelines and best practices
+
+Format it as a proper markdown file that starts with:
+# OLLAMA.md
+
+This file provides guidance to Ollama Code Agent when working with code in this repository.
+
+Make it specific to what the user described."""
         
         # Get AI to analyze and create OLLAMA.md
         response = await self.chat(analysis_prompt)
