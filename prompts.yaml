@@ -114,7 +114,9 @@ code:
     top_p: 0.9
 
 # Custom prompt templates
+# IMPORTANT: These templates are used by the /init command and should not be removed
 templates:
+  # Template for analyzing existing codebases with the /init command
   init_project_with_files: |
     Please analyze this codebase and create an OLLAMA.md file that will help you understand the project when working with it in the future.
 
@@ -143,6 +145,7 @@ templates:
 
     Make it specific to this project, not generic.
   
+  # Template for creating OLLAMA.md in empty directories with the /init command
   init_project_empty: |
     Create an OLLAMA.md file for a new project based on this description: {user_context}
 
