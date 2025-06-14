@@ -1,0 +1,293 @@
+{
+  "// ": "This file contains all user-facing messages for ollama-code.py",
+  "// ": "Each message has a key that describes its purpose and context",
+  "// ": "Messages support Rich markup for terminal formatting",
+  
+  "app": {
+    "title": {
+      "text": "🤖 OLLAMA CODE AGENT 🤖",
+      "// ": "Main application title displayed at startup"
+    },
+    "goodbye": {
+      "text": "👋 Goodbye!",
+      "// ": "Farewell message when user exits the application"
+    },
+    "logs_saved": {
+      "text": "📝 [dim]Logs saved to ~/.ollama/logs/ollama-code.log[/dim]",
+      "// ": "Reminder about where logs are saved, shown on exit"
+    }
+  },
+  
+  "connection": {
+    "ollama_connected": {
+      "text": "✅ [green]Ollama server is running[/green]",
+      "// ": "Success message when connection to Ollama server is established"
+    },
+    "ollama_not_connected": {
+      "text": "❌ [red]Cannot connect to Ollama server[/red]",
+      "// ": "Error message when unable to connect to Ollama server"
+    },
+    "ollama_start_hint": {
+      "text": "Please start Ollama: ollama serve",
+      "// ": "Instructions for starting the Ollama server"
+    },
+    "docker_connected": {
+      "text": "🐳 [green]Docker connected[/green]",
+      "// ": "Success message when Docker is available and connected"
+    },
+    "docker_not_available": {
+      "text": "⚠️ [yellow]Docker not available, using subprocess mode[/yellow]",
+      "// ": "Warning when Docker isn't available, falling back to subprocess"
+    },
+    "subprocess_mode": {
+      "text": "⚙️ [blue]Using subprocess mode for code execution[/blue]",
+      "// ": "Info message confirming subprocess mode for code execution"
+    }
+  },
+  
+  "models": {
+    "available_models_header": {
+      "text": "\n📋 [cyan]Available Models:[/cyan]",
+      "// ": "Header for the list of available Ollama models"
+    },
+    "no_models": {
+      "text": "❌ [red]No models available. Please pull a model first.[/red]",
+      "// ": "Error when no models are found in Ollama"
+    },
+    "model_pull_example": {
+      "text": "Example: ollama pull qwen2.5-coder:7b",
+      "// ": "Example command showing how to pull a model"
+    },
+    "model_selected": {
+      "text": "🤖 [cyan]Using model: {model_name}[/cyan]",
+      "// ": "Confirmation of which model was selected"
+    },
+    "model_selection_prompt": {
+      "text": "\n🎯 Select a model by number (or press Enter for default)",
+      "// ": "Prompt asking user to select a model"
+    },
+    "invalid_selection": {
+      "text": "❌ [red]Invalid selection. Please try again.[/red]",
+      "// ": "Error when user enters invalid model selection"
+    },
+    "enter_number": {
+      "text": "❌ [red]Please enter a number.[/red]",
+      "// ": "Error when user enters non-numeric input for model selection"
+    }
+  },
+  
+  "mcp": {
+    "not_available": {
+      "text": "❌ [red]FastMCP not available[/red]",
+      "// ": "Error when FastMCP package is not installed"
+    },
+    "available_tools_header": {
+      "text": "🔧 [cyan]Available MCP Tools[/cyan]",
+      "// ": "Header for the MCP tools listing"
+    },
+    "connecting": {
+      "text": "🔌 [cyan]Connecting to MCP servers...[/cyan]",
+      "// ": "Status message while connecting to MCP servers"
+    },
+    "connected": {
+      "text": "✅ [green]Connected to {server_name} ({tool_count} tools available)[/green]",
+      "// ": "Success message when MCP server connection is established"
+    },
+    "connection_failed": {
+      "text": "❌ [red]Failed to connect to {server_name}: {error}[/red]",
+      "// ": "Error message when MCP server connection fails"
+    },
+    "connection_warning": {
+      "text": "⚠️ [yellow]Could not connect to {server_name}: {error}[/yellow]",
+      "// ": "Warning for non-critical MCP connection failures"
+    },
+    "unsupported_type": {
+      "text": "❌ [red]Unsupported server type: {server_type}[/red]",
+      "// ": "Error when MCP server type is not supported"
+    },
+    "no_tools": {
+      "text": "🔧 [cyan]MCP Tools:[/cyan] None configured",
+      "// ": "Message when no MCP tools are configured"
+    },
+    "info": {
+      "text": "💡 [dim]MCP (Model Context Protocol) allows integration with external tools[/dim]",
+      "// ": "Informational message about what MCP is"
+    },
+    "see_logs": {
+      "text": "📖 [dim]See logs for configuration details[/dim]",
+      "// ": "Hint to check logs for MCP configuration details"
+    },
+    "available_tools_header": {
+      "text": "🔧 Available MCP Tools",
+      "// ": "Table title for listing available MCP tools"
+    }
+  },
+  
+  "code_execution": {
+    "success_with_output": {
+      "panel_title": {
+        "text": "✅ Output",
+        "// ": "Panel title for successful code execution with output"
+      }
+    },
+    "success_no_output": {
+      "text": "✅ [green]Code executed successfully (no output)[/green]",
+      "// ": "Success message when code runs without producing output"
+    },
+    "error": {
+      "panel_title": {
+        "text": "❌ Error",
+        "// ": "Panel title for code execution errors"
+      }
+    },
+    "code_panel_title": {
+      "text": "🐍 Executing Python Code",
+      "// ": "Panel title for displaying Python code being executed"
+    }
+  },
+  
+  "file_operations": {
+    "created": {
+      "text": "📝 [green]Created file: {filename}[/green]",
+      "// ": "Success message when a file is created"
+    },
+    "read_panel_title": {
+      "text": "📄 {filename}",
+      "// ": "Panel title when displaying file contents"
+    },
+    "list_panel_title": {
+      "text": "📁 Files in {directory}",
+      "// ": "Panel title when listing directory contents"
+    }
+  },
+  
+  "prompts": {
+    "available_prompts_header": {
+      "text": "🔧 Available Code Prompts",
+      "// ": "Table title for listing available prompts"
+    },
+    "no_prompts": {
+      "text": "[yellow]No prompts available[/yellow]",
+      "// ": "Warning when no prompts are found in prompts.yaml"
+    },
+    "prompt_loaded": {
+      "text": "✨ [bold yellow]Loaded prompt: {prompt_name}[/bold yellow]",
+      "// ": "Success message when a prompt is loaded"
+    },
+    "prompt_not_found": {
+      "text": "❌ [red]Prompt '{prompt_name}' not found[/red]",
+      "// ": "Error when requested prompt doesn't exist"
+    }
+  },
+  
+  "interface": {
+    "ready": {
+      "text": "🚀 [green]Code agent ready![/green]",
+      "// ": "Message indicating the agent is ready for input"
+    },
+    "init_hint": {
+      "text": "💡 [dim]Type '/init' to analyze this codebase and create OLLAMA.md[/dim]",
+      "// ": "Hint about the init command"
+    },
+    "example_hint": {
+      "text": "💡 [dim]Try: 'Write Python code to analyze a CSV file'[/dim]",
+      "// ": "Example prompt to help users get started"
+    },
+    "tools_hint": {
+      "text": "🔧 [dim]Type '/tools' to see available tools[/dim]",
+      "// ": "Hint about the /tools command"
+    },
+    "exit_hint": {
+      "text": "🚪 [dim]Type 'quit' or 'exit' to leave[/dim]",
+      "// ": "Instructions for exiting the application"
+    },
+    "user_prompt": {
+      "text": "\n💭 You: ",
+      "// ": "Prompt prefix for user input"
+    },
+    "ai_response_title": {
+      "text": "🤖 AI Assistant",
+      "// ": "Panel title for AI responses"
+    }
+  },
+  
+  "help": {
+    "panel_content": {
+      "text": "Available commands:\n- /init [context] - Analyze codebase and create OLLAMA.md\n  Example: /init this is a web API project using FastAPI\n- /init --force   - Overwrite existing OLLAMA.md\n- /tools          - Show available MCP tools\n- /prompts        - List available code prompts\n- /prompt <name>  - Load a specific prompt\n- /help           - Show this help\n- quit            - Exit the program\n\nJust type your request in natural language!\nExamples:\n- \"Write a Python script to scrape a website\"\n- \"Create a data visualization from CSV\"\n- \"Help me debug this code\"",
+      "// ": "Full help text displayed with /help command"
+    },
+    "panel_title": {
+      "text": "Help",
+      "// ": "Title for the help panel"
+    }
+  },
+  
+  "init": {
+    "analyzing": {
+      "text": "🔍 [yellow]Analyzing codebase...[/yellow]",
+      "// ": "Status message while analyzing the project"
+    },
+    "no_files": {
+      "text": "❌ [red]No code files found in the current directory[/red]",
+      "// ": "Error when no code files are found"
+    },
+    "success": {
+      "text": "✅ [green]Successfully created OLLAMA.md[/green]",
+      "// ": "Success message after creating OLLAMA.md"
+    },
+    "already_exists": {
+      "text": "⚠️ [yellow]OLLAMA.md already exists. Use '/init --force' to overwrite[/yellow]",
+      "// ": "Warning when OLLAMA.md already exists"
+    },
+    "analyzing_files": {
+      "text": "📂 [cyan]Found {count} files to analyze[/cyan]",
+      "// ": "Status showing number of files found"
+    },
+    "generating": {
+      "text": "✍️ [yellow]Generating OLLAMA.md based on analysis...[/yellow]",
+      "// ": "Status while generating the file"
+    }
+  },
+  
+  "errors": {
+    "ollama_communication": {
+      "text": "❌ [red]Error communicating with Ollama: {error}[/red]",
+      "// ": "Error when Ollama API calls fail"
+    },
+    "ollama_hint": {
+      "text": "Make sure Ollama is running: ollama serve",
+      "// ": "Hint for fixing Ollama connection issues"
+    },
+    "unexpected": {
+      "text": "❌ [red]Unexpected error: {error}[/red]",
+      "// ": "Generic error message for unexpected failures"
+    },
+    "execution_failed": {
+      "text": "❌ [red]Error executing {function}: {error}[/red]",
+      "// ": "Error when a specific function execution fails"
+    },
+    "parsing_models": {
+      "text": "❌ [red]Error parsing model list: {error}[/red]",
+      "// ": "Error when unable to parse Ollama model list"
+    }
+  },
+  
+  "table_headers": {
+    "models": {
+      "index": "Index",
+      "model": "Model",
+      "// ": "Column headers for model selection table"
+    },
+    "prompts": {
+      "name": "Name",
+      "description": "Description",
+      "// ": "Column headers for prompts listing table"
+    },
+    "tools": {
+      "server": "Server",
+      "tool": "Tool",
+      "description": "Description",
+      "// ": "Column headers for MCP tools table"
+    }
+  }
+}
