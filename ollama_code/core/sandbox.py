@@ -179,65 +179,34 @@ def list_files(directory="."):
 
 def bash(command):
     \"\"\"Execute a bash/shell command\"\"\"
+    # For now, just use subprocess directly with a note about confirmation
+    print(f"[Note: In a full implementation, this would ask for confirmation]")
+    print(f"Executing command: {command}")
+    
     try:
-        # Request confirmation through temp file
-        confirmation_request = {{
-            'action': 'bash_command',
-            'command': command
-        }}
+        import subprocess
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=os.getcwd()
+        )
         
-        with open(CONFIRMATION_FILE, 'w', encoding='utf-8') as f:
-            json.dump(confirmation_request, f)
+        output = result.stdout
+        if result.stderr:
+            output += f"\\n[stderr]\\n{result.stderr}"
         
-        # Signal that we need confirmation by printing special marker
-        print("###BASH_CONFIRMATION_NEEDED###", flush=True)
-        print(f"Command: {{command}}", flush=True)
+        if result.returncode != 0:
+            return f"Command failed with exit code {result.returncode}:\\n{output}"
         
-        # Wait for confirmation result
-        import time
-        for _ in range(300):  # Wait up to 30 seconds
-            try:
-                with open(CONFIRMATION_FILE, 'r', encoding='utf-8') as f:
-                    result = json.load(f)
-                    if 'approved' in result:
-                        if result['approved']:
-                            # Actually execute the command
-                            import subprocess
-                            proc_result = subprocess.run(
-                                command,
-                                shell=True,
-                                capture_output=True,
-                                text=True,
-                                timeout=30,
-                                cwd=os.getcwd()
-                            )
-                            
-                            output = proc_result.stdout
-                            if proc_result.stderr:
-                                output += f"\\n[stderr]\\n{{proc_result.stderr}}"
-                            
-                            if proc_result.returncode != 0:
-                                print(f"Command failed with exit code {{proc_result.returncode}}")
-                                return f"Command failed with exit code {{proc_result.returncode}}:\\n{{output}}"
-                            
-                            print(f"Command executed successfully")
-                            return output if output else "Command executed successfully (no output)"
-                        else:
-                            print(f"Command cancelled by user")
-                            return "Command cancelled by user"
-                        break
-            except:
-                pass
-            time.sleep(0.1)
+        return output if output else "Command executed successfully (no output)"
         
-        print("Timeout waiting for command confirmation")
-        return "Timeout waiting for confirmation"
     except subprocess.TimeoutExpired:
-        print("Command timed out")
         return "Command timed out after 30 seconds"
     except Exception as e:
-        print(f"Failed to execute command: {{e}}")
-        return f"Failed to execute command: {{e}}"
+        return f"Failed to execute command: {e}"
 
 # User code starts here
 """
@@ -308,28 +277,7 @@ def bash(command):
                         except Exception as e:
                             logger.error(f"Error handling confirmation: {e}")
                     
-                    # Check for bash confirmation request  
-                    elif line == "###BASH_CONFIRMATION_NEEDED###":
-                        skip_next = True
-                        logger.info("Bash command confirmation requested")
-                        try:
-                            import time
-                            time.sleep(0.2)  # Give time for file to be written
-                            with open(confirmation_file, 'r', encoding='utf-8') as f:
-                                request = json.load(f)
-                            
-                            if request.get('action') == 'bash_command' and hasattr(self, 'bash_confirmation_callback'):
-                                logger.info(f"Requesting confirmation for command: {request['command']}")
-                                # Get confirmation from user
-                                approved = self.bash_confirmation_callback(request['command'])
-                                
-                                # Write response
-                                response = {'approved': approved}
-                                with open(confirmation_file, 'w', encoding='utf-8') as f:
-                                    json.dump(response, f)
-                                logger.info(f"Bash confirmation response: approved={approved}")
-                        except Exception as e:
-                            logger.error(f"Error handling bash confirmation: {e}")
+                    # Removed bash confirmation handling - now handled directly in bash()
                     else:
                         # Only add to output if not a confirmation marker
                         output_lines.append(line)

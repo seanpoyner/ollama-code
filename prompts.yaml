@@ -29,9 +29,9 @@ code:
     
     5. bash(command): Execute shell/bash commands
        - Use for git, npm, pip, file operations, etc.
+       - Example: bash("ls")
        - Example: bash("git status")
-       - Example: bash("npm install")
-       - NOTE: The user will be asked to approve commands before execution
+       - NOTE: Currently executes without confirmation in sandbox mode
     
     TOOL USAGE:
     When the user asks you to create files, use the write_file() tool explicitly.
@@ -70,9 +70,6 @@ code:
     
     Common tasks examples:
     ```python
-    # Initialize a git repo
-    bash("git init")
-    
     # Create a .gitignore
     write_file(".gitignore", \"\"\"__pycache__/
     *.pyc
@@ -80,12 +77,9 @@ code:
     node_modules/
     \"\"\")
     
-    # Check git status
+    # Run shell commands:
     output = bash("git status")
     print(output)
-    
-    # Install dependencies
-    bash("npm install express")
     ```
     
     When asked to write code:
