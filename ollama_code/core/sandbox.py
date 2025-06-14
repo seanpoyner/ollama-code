@@ -269,12 +269,18 @@ def bash(command):
             import threading
             
             def read_stdout():
+                skip_next = False
                 for line in process.stdout:
                     line = line.rstrip()
-                    output_lines.append(line)
                     
-                    # Check for confirmation request
+                    # Skip the line after confirmation markers
+                    if skip_next and (line.startswith("Writing to:") or line.startswith("Command:")):
+                        skip_next = False
+                        continue
+                    
+                    # Check for confirmation request before appending to output
                     if line == "###CONFIRMATION_NEEDED###":
+                        skip_next = True
                         logger.info("File write confirmation requested")
                         # Read the confirmation request
                         try:
@@ -302,15 +308,18 @@ def bash(command):
                         except Exception as e:
                             logger.error(f"Error handling confirmation: {e}")
                     
-                    # Check for bash confirmation request
+                    # Check for bash confirmation request  
                     elif line == "###BASH_CONFIRMATION_NEEDED###":
+                        skip_next = True
+                        logger.info("Bash command confirmation requested")
                         try:
                             import time
-                            time.sleep(0.1)  # Give time for file to be written
+                            time.sleep(0.2)  # Give time for file to be written
                             with open(confirmation_file, 'r', encoding='utf-8') as f:
                                 request = json.load(f)
                             
                             if request.get('action') == 'bash_command' and hasattr(self, 'bash_confirmation_callback'):
+                                logger.info(f"Requesting confirmation for command: {request['command']}")
                                 # Get confirmation from user
                                 approved = self.bash_confirmation_callback(request['command'])
                                 
@@ -318,8 +327,12 @@ def bash(command):
                                 response = {'approved': approved}
                                 with open(confirmation_file, 'w', encoding='utf-8') as f:
                                     json.dump(response, f)
+                                logger.info(f"Bash confirmation response: approved={approved}")
                         except Exception as e:
                             logger.error(f"Error handling bash confirmation: {e}")
+                    else:
+                        # Only add to output if not a confirmation marker
+                        output_lines.append(line)
             
             def read_stderr():
                 for line in process.stderr:
