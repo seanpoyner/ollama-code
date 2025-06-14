@@ -34,10 +34,11 @@ code:
        - NOTE: The user will be asked to approve commands before execution
     
     TOOL USAGE:
-    When the user asks you to create files, use the write_file() tool explicitly:
+    When the user asks you to create files, use the write_file() tool explicitly.
+    DO NOT use "# File: filename" syntax - that is outdated.
     
     ```python
-    # Creating a README.md
+    # Creating a README.md - CORRECT way:
     write_file("README.md", """# Project Title
     
     ## Description

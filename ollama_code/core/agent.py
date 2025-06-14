@@ -95,7 +95,7 @@ class OllamaCodeAgent:
         syntax = ext_map.get(file_ext, 'text')
         
         # Show file preview
-        console.print(f"\n📝 [bold yellow]File Write Request:[/bold yellow] {filename}")
+        console.print(f"\n{get_message('file_operations.write_request', filename=filename)}")
         
         # Truncate content if too long
         preview_content = content
@@ -185,7 +185,10 @@ class OllamaCodeAgent:
         display_code_execution(code)
         logger.info(f"Executing Python code: {code[:100]}...")
         result = self.sandbox.execute_python(code)
-        display_execution_result(result)
+        
+        # Only display result if there's output or error
+        if result['output'] or result['error']:
+            display_execution_result(result)
         
         if result['success']:
             if result['output']:

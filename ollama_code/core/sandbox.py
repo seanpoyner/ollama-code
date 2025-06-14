@@ -34,7 +34,7 @@ class CodeSandbox:
         else:
             print("⚙️ Using subprocess mode for code execution")
     
-    def execute_python(self, code, timeout=30):
+    def execute_python(self, code, timeout=120):
         """Execute Python code safely"""
         if self.docker_client and self.use_docker:
             return self._execute_docker_python(code, timeout)
@@ -123,8 +123,8 @@ def write_file(filename, content):
             json.dump(confirmation_request, f)
         
         # Signal that we need confirmation by printing special marker
-        print("###CONFIRMATION_NEEDED###")
-        print(f"Writing to: {{filename}}")
+        print("###CONFIRMATION_NEEDED###", flush=True)
+        print(f"Writing to: {{filename}}", flush=True)
         
         # Wait for confirmation result
         import time
@@ -190,8 +190,8 @@ def bash(command):
             json.dump(confirmation_request, f)
         
         # Signal that we need confirmation by printing special marker
-        print("###BASH_CONFIRMATION_NEEDED###")
-        print(f"Command: {{command}}")
+        print("###BASH_CONFIRMATION_NEEDED###", flush=True)
+        print(f"Command: {{command}}", flush=True)
         
         # Wait for confirmation result
         import time
@@ -270,14 +270,16 @@ def bash(command):
                     
                     # Check for confirmation request
                     if line == "###CONFIRMATION_NEEDED###":
+                        logger.info("File write confirmation requested")
                         # Read the confirmation request
                         try:
                             import time
-                            time.sleep(0.1)  # Give time for file to be written
+                            time.sleep(0.2)  # Give time for file to be written
                             with open(confirmation_file, 'r', encoding='utf-8') as f:
                                 request = json.load(f)
                             
                             if request.get('action') == 'write_file' and self.write_confirmation_callback:
+                                logger.info(f"Requesting confirmation for file: {request['filename']}")
                                 # Get confirmation from user
                                 approved, feedback = self.write_confirmation_callback(
                                     request['filename'],
@@ -291,6 +293,7 @@ def bash(command):
                                 }
                                 with open(confirmation_file, 'w', encoding='utf-8') as f:
                                     json.dump(response, f)
+                                logger.info(f"Confirmation response: approved={approved}")
                         except Exception as e:
                             logger.error(f"Error handling confirmation: {e}")
                     
