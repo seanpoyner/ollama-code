@@ -181,7 +181,7 @@ def bash(command):
     \"\"\"Execute a bash/shell command\"\"\"
     # For now, just use subprocess directly with a note about confirmation
     print(f"[Note: In a full implementation, this would ask for confirmation]")
-    print(f"Executing command: {command}")
+    print(f"Executing command: {{command}}")
     
     try:
         import subprocess
@@ -196,17 +196,17 @@ def bash(command):
         
         output = result.stdout
         if result.stderr:
-            output += f"\\n[stderr]\\n{result.stderr}"
+            output += f"\\n[stderr]\\n{{result.stderr}}"
         
         if result.returncode != 0:
-            return f"Command failed with exit code {result.returncode}:\\n{output}"
+            return f"Command failed with exit code {{result.returncode}}:\\n{{output}}"
         
         return output if output else "Command executed successfully (no output)"
         
     except subprocess.TimeoutExpired:
         return "Command timed out after 30 seconds"
     except Exception as e:
-        return f"Failed to execute command: {e}"
+        return f"Failed to execute command: {{e}}"
 
 # User code starts here
 """
