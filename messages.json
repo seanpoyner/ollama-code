@@ -197,6 +197,10 @@
       "text": "🔧 [dim]Type '/tools' to see available tools[/dim]",
       "// ": "Hint about the /tools command"
     },
+    "todo_hint": {
+      "text": "📋 [dim]Type '/todo' to manage your task list[/dim]",
+      "// ": "Hint about the /todo command"
+    },
     "exit_hint": {
       "text": "🚪 [dim]Type 'quit' or 'exit' to leave[/dim]",
       "// ": "Instructions for exiting the application"
@@ -213,7 +217,7 @@
   
   "help": {
     "panel_content": {
-      "text": "Available commands:\n- /init [context] - Analyze codebase and create OLLAMA.md\n  Example: /init this is a web API project using FastAPI\n- /init --force   - Overwrite existing OLLAMA.md\n- /tools          - Show available MCP tools\n- /prompts        - List available code prompts\n- /prompt <name>  - Load a specific prompt\n- /help           - Show this help\n- quit            - Exit the program\n\nJust type your request in natural language!\nExamples:\n- \"Write a Python script to scrape a website\"\n- \"Create a data visualization from CSV\"\n- \"Help me debug this code\"",
+      "text": "Available commands:\n- /init [context] - Analyze codebase and create OLLAMA.md\n  Example: /init this is a web API project using FastAPI\n- /init --force   - Overwrite existing OLLAMA.md\n- /todo           - Show todo list\n- /todo add [priority] <task> - Add a todo (priority: high/medium/low)\n- /todo done <id> - Mark todo as completed\n- /todo start <id> - Start working on a todo\n- /todo next      - Show next todo to work on\n- /tools          - Show available MCP tools\n- /prompts        - List available code prompts\n- /prompt <name>  - Load a specific prompt\n- /help           - Show this help\n- quit            - Exit the program\n\nJust type your request in natural language!\nExamples:\n- \"Write a Python script to scrape a website\"\n- \"Create a data visualization from CSV\"\n- \"Help me debug this code\"",
       "// ": "Full help text displayed with /help command"
     },
     "panel_title": {
@@ -246,6 +250,45 @@
     "generating": {
       "text": "✍️ [yellow]Generating OLLAMA.md based on analysis...[/yellow]",
       "// ": "Status while generating the file"
+    }
+  },
+  
+  "todos": {
+    "added": {
+      "text": "✅ [green]Todo added: {content}[/green]",
+      "// ": "Success message when todo is added"
+    },
+    "updated": {
+      "text": "✅ [green]Todo updated[/green]",
+      "// ": "Success message when todo is updated"
+    },
+    "deleted": {
+      "text": "🗑️ [yellow]Todo deleted[/yellow]",
+      "// ": "Success message when todo is deleted"
+    },
+    "not_found": {
+      "text": "❌ [red]Todo not found with ID: {id}[/red]",
+      "// ": "Error when todo ID not found"
+    },
+    "marked_done": {
+      "text": "✅ [green]Todo marked as completed: {content}[/green]",
+      "// ": "Success when todo marked done"
+    },
+    "started": {
+      "text": "🔄 [blue]Started working on: {content}[/blue]",
+      "// ": "Success when todo marked as in progress"
+    },
+    "cancelled": {
+      "text": "❌ [yellow]Todo cancelled: {content}[/yellow]",
+      "// ": "Success when todo cancelled"
+    },
+    "cleared": {
+      "text": "🗑️ [yellow]All completed todos cleared[/yellow]",
+      "// ": "Success when completed todos are cleared"
+    },
+    "resume_hint": {
+      "text": "💡 [dim]Use '--resume' flag to continue from your last todo[/dim]",
+      "// ": "Hint about resume functionality"
     }
   },
   

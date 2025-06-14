@@ -8,7 +8,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="ollama-code",
     version="0.1.0",
-    author="Ollama Code Contributors",
+    author="Sean Poyner and Ollama Code Contributors",
+    author_email="sean.poyner2@gmail.com",
     description="A powerful coding assistant powered by Ollama",
     long_description=long_description,
     long_description_content_type="text/markdown",

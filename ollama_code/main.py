@@ -10,6 +10,7 @@ from rich.table import Table
 from rich.prompt import Prompt
 
 from .core.agent import OllamaCodeAgent
+from .core.todos import TodoManager, TodoStatus, TodoPriority
 from .utils.logging import setup_logging
 from .utils.messages import get_message
 from .utils.config import load_prompts, load_ollama_md, load_ollama_code_config
@@ -18,7 +19,7 @@ console = Console()
 logger = setup_logging()
 
 
-async def main():
+async def main(resume=False):
     console.print(Panel(
         Text(get_message('app.title'), justify="center"),
         style="bold blue"
@@ -107,6 +108,9 @@ async def main():
     # Initialize agent with prompts data, OLLAMA.md, and config
     agent = OllamaCodeAgent(model_name, prompts_data, ollama_md, ollama_config)
     
+    # Initialize todo manager
+    todo_manager = TodoManager()
+    
     # Connect to MCP servers
     await agent.connect_mcp_servers()
     
@@ -115,7 +119,19 @@ async def main():
         console.print(get_message('interface.init_hint'))
     console.print(get_message('interface.example_hint'))
     console.print(get_message('interface.tools_hint'))
+    console.print(get_message('interface.todo_hint'))
     console.print(get_message('interface.exit_hint') + "\n")
+    
+    # Handle --resume flag
+    if resume:
+        next_todo = todo_manager.get_next_todo()
+        if next_todo:
+            console.print(get_message('todos.resume_hint'))
+            todo_manager.display_next_todo()
+            # Start working on the todo
+            todo_manager.update_todo(next_todo.id, status=TodoStatus.IN_PROGRESS.value)
+            # Add the todo content as the first query
+            await agent.chat(f"Help me with: {next_todo.content}")
     
     while True:
         try:
@@ -131,6 +147,65 @@ async def main():
                     title=get_message('help.panel_title'),
                     border_style="blue"
                 ))
+                continue
+            elif user_input.lower().startswith('/todo'):
+                # Parse todo command
+                cmd_info = todo_manager.parse_todo_command(user_input)
+                
+                if cmd_info["action"] == "list":
+                    todo_manager.display_todos()
+                
+                elif cmd_info["action"] == "add":
+                    todo = todo_manager.add_todo(cmd_info["content"], cmd_info["priority"])
+                    console.print(get_message('todos.added', content=todo.content))
+                
+                elif cmd_info["action"] == "done":
+                    todo = todo_manager.get_todo(cmd_info["id"])
+                    if todo:
+                        todo_manager.update_todo(todo.id, status=TodoStatus.COMPLETED.value)
+                        console.print(get_message('todos.marked_done', content=todo.content))
+                    else:
+                        console.print(get_message('todos.not_found', id=cmd_info["id"]))
+                
+                elif cmd_info["action"] == "start":
+                    todo = todo_manager.get_todo(cmd_info["id"])
+                    if todo:
+                        # Mark any other in-progress todos as pending
+                        for t in todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS):
+                            todo_manager.update_todo(t.id, status=TodoStatus.PENDING.value)
+                        # Mark this one as in progress
+                        todo_manager.update_todo(todo.id, status=TodoStatus.IN_PROGRESS.value)
+                        console.print(get_message('todos.started', content=todo.content))
+                    else:
+                        console.print(get_message('todos.not_found', id=cmd_info["id"]))
+                
+                elif cmd_info["action"] == "cancel":
+                    todo = todo_manager.get_todo(cmd_info["id"])
+                    if todo:
+                        todo_manager.update_todo(todo.id, status=TodoStatus.CANCELLED.value)
+                        console.print(get_message('todos.cancelled', content=todo.content))
+                    else:
+                        console.print(get_message('todos.not_found', id=cmd_info["id"]))
+                
+                elif cmd_info["action"] == "delete":
+                    todo = todo_manager.get_todo(cmd_info["id"])
+                    if todo:
+                        content = todo.content
+                        todo_manager.delete_todo(todo.id)
+                        console.print(get_message('todos.deleted'))
+                    else:
+                        console.print(get_message('todos.not_found', id=cmd_info["id"]))
+                
+                elif cmd_info["action"] == "next":
+                    todo_manager.display_next_todo()
+                
+                elif cmd_info["action"] == "clear":
+                    # Clear completed todos
+                    completed = todo_manager.get_todos_by_status(TodoStatus.COMPLETED)
+                    for todo in completed:
+                        todo_manager.delete_todo(todo.id)
+                    console.print(get_message('todos.cleared'))
+                
                 continue
             elif user_input.lower().startswith('/init'):
                 # Parse the init command
@@ -192,7 +267,12 @@ async def main():
 
 def run():
     """Entry point for the CLI"""
-    asyncio.run(main())
+    import sys
+    
+    # Check for --resume flag
+    resume = '--resume' in sys.argv
+    
+    asyncio.run(main(resume=resume))
 
 
 if __name__ == "__main__":

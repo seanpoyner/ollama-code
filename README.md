@@ -11,6 +11,8 @@ A powerful coding assistant powered by Ollama models with code execution capabil
 - 💭 Real-time thinking indicators
 - ⚡ ESC key cancellation support
 - 📚 Project context awareness (OLLAMA.md)
+- 📋 Built-in todo list with persistence
+- 🔄 Resume functionality (--resume flag)
 - 🔧 Extensible with MCP tools
 
 ## Installation
@@ -35,15 +37,30 @@ ollama serve
 
 # Run Ollama Code
 ollama-code
+
+# Resume from last todo
+ollama-code --resume
 ```
 
 ## Commands
 
+### Project Management
 - `/init [context]` - Analyze codebase and create OLLAMA.md
+- `/init --force` - Overwrite existing OLLAMA.md
+
+### Todo Management
+- `/todo` - Show todo list
+- `/todo add [priority] <task>` - Add a todo (priority: high/medium/low)
+- `/todo done <id>` - Mark todo as completed
+- `/todo start <id>` - Start working on a todo
+- `/todo next` - Show next todo to work on
+- `/todo clear` - Clear completed todos
+
+### Other Commands
 - `/tools` - Show available MCP tools
 - `/prompts` - List available code prompts
 - `/prompt <name>` - Load a specific prompt
-- `/help` - Show help
+- `/help` - Show all commands
 - `quit` - Exit the program
 
 ## Creating Web Applications
