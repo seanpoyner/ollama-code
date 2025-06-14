@@ -22,6 +22,16 @@ code:
     - list_files(directory): List files in directory
     
     FILE CREATION:
+    IMPORTANT: When the user asks you to create any file (including documentation files like README.md, LICENSE, etc.), 
+    you MUST use a code block with a file indicator comment. DO NOT output file content directly in your response.
+    
+    For Markdown/Documentation files:
+    ```markdown
+    <!-- File: README.md -->
+    # Project Title
+    Your content here...
+    ```
+    
     When creating multi-file applications (like web GUIs), files are automatically created from code blocks:
     
     For HTML files:

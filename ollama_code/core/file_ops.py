@@ -70,6 +70,24 @@ def extract_function_calls(text):
     """Extract function calls from AI response"""
     calls = []
     
+    # First check for markdown files with file indicators - these take priority
+    # This prevents nested code examples in documentation from being extracted
+    md_pattern = r'```(?:markdown|md)\n(.*?)\n```'
+    md_matches = re.findall(md_pattern, text, re.DOTALL)
+    for md in md_matches:
+        # Check for filename comment
+        if md.strip().startswith('<!-- File:') or md.strip().startswith('<!-- file:'):
+            lines = md.strip().split('\n')
+            if len(lines) > 1:
+                filename_match = re.search(r'<!--\s*[Ff]ile:\s*(.+?)\s*-->', lines[0])
+                if filename_match:
+                    filename = filename_match.group(1).strip()
+                    content = '\n'.join(lines[1:])
+                    calls.append(('create_file', (filename, content)))
+                    # If we found a markdown file to create, skip other code extraction
+                    # This prevents example code in README from being executed
+                    return calls
+    
     # Extract Python code blocks for execution
     code_pattern = r'```python\n(.*?)\n```'
     code_matches = re.findall(code_pattern, text, re.DOTALL)
@@ -162,5 +180,22 @@ def extract_function_calls(text):
             continue
         filename = f'data.json' if i == 0 else f'data{i+1}.json'
         calls.append(('create_file', (filename, json_content.strip())))
+    
+    # Note: Markdown extraction is handled at the beginning of the function
+    # to prioritize documentation file creation over example code extraction
+    
+    # Extract plain text files
+    txt_pattern = r'```(?:text|txt|plaintext)\n(.*?)\n```'
+    txt_matches = re.findall(txt_pattern, text, re.DOTALL)
+    for txt in txt_matches:
+        # Check for filename comment
+        if txt.strip().startswith('# File:') or txt.strip().startswith('# file:'):
+            lines = txt.strip().split('\n')
+            if len(lines) > 1:
+                filename_match = re.search(r'#\s*[Ff]ile:\s*(.+)', lines[0])
+                if filename_match:
+                    filename = filename_match.group(1).strip()
+                    content = '\n'.join(lines[1:])
+                    calls.append(('create_file', (filename, content)))
     
     return calls

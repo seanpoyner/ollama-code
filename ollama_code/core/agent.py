@@ -123,6 +123,11 @@ class OllamaCodeAgent:
             # Add system message about task breakdown
             user_input = f"{user_input}\n\n[System: I've broken this down into {len(tasks)} tasks. Please work through them systematically.]"
         
+        # Add hint for file creation requests
+        if any(keyword in user_input.lower() for keyword in ['create', 'write', 'generate']) and \
+           any(keyword in user_input.lower() for keyword in ['readme', 'license', 'dockerfile', '.md', '.txt', 'file']):
+            user_input += "\n\n[System: Remember to use code blocks with file indicators for file creation. For example: ```markdown\\n<!-- File: README.md -->\\nContent here...\\n```]"
+        
         # Add user message
         self.conversation.append({'role': 'user', 'content': user_input})
         
