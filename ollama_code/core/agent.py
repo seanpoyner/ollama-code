@@ -106,7 +106,7 @@ class OllamaCodeAgent:
             logger.error(f"Code execution failed: {result['error']}")
             return f"Code execution failed: {result['error']}"
 
-    async def chat(self, user_input):
+    async def chat(self, user_input, enable_esc_cancel=True):
         """Main chat interface with tool execution"""
         # Add user message
         self.conversation.append({'role': 'user', 'content': user_input})
@@ -120,7 +120,7 @@ class OllamaCodeAgent:
         cancelled = False
         
         # Set up cancellation handling
-        cancel_event = setup_esc_handler()
+        cancel_event = setup_esc_handler() if enable_esc_cancel else None
         
         try:
             with Live(console=console, refresh_per_second=4) as live:
@@ -128,8 +128,9 @@ class OllamaCodeAgent:
                 status_text = Text()
                 status_text.append("🤔 ", style="bold yellow")
                 status_text.append("AI is thinking...", style="yellow")
-                status_text.append("\n💡 ", style="dim")
-                status_text.append("Press ESC to cancel", style="dim italic")
+                if enable_esc_cancel:
+                    status_text.append("\n💡 ", style="dim")
+                    status_text.append("Press ESC to cancel", style="dim italic")
                 
                 live.update(Panel(status_text, border_style="yellow", title="Processing"))
                 
@@ -144,7 +145,7 @@ class OllamaCodeAgent:
                 last_update = time.time()
                 
                 for chunk in stream:
-                    if cancel_event.is_set():
+                    if cancel_event and cancel_event.is_set():
                         cancelled = True
                         break
                     
@@ -162,8 +163,9 @@ class OllamaCodeAgent:
                         status_text.append(thinking_status, style="yellow")
                         status_text.append(f"\n📝 ", style="dim")
                         status_text.append(f"Received {chunk_count} chunks...", style="dim")
-                        status_text.append("\n💡 ", style="dim")
-                        status_text.append("Press ESC to cancel", style="dim italic")
+                        if enable_esc_cancel:
+                            status_text.append("\n💡 ", style="dim")
+                            status_text.append("Press ESC to cancel", style="dim italic")
                         
                         live.update(Panel(status_text, border_style="yellow", title="Processing"))
                         last_update = time.time()
@@ -174,7 +176,8 @@ class OllamaCodeAgent:
             return "Error: Could not connect to Ollama"
         finally:
             # Stop the ESC monitoring thread
-            cancel_event.set()
+            if cancel_event:
+                cancel_event.set()
         
         if cancelled:
             console.print("❌ [red]Request cancelled by user[/red]")
@@ -276,6 +279,18 @@ class OllamaCodeAgent:
         
         console.print(get_message('init.generating'))
         
+        # Show what we're sending to the AI
+        console.print(f"📊 [dim]Found {len(code_files) if code_files else 0} code files to analyze[/dim]")
+        if readme_content:
+            console.print(f"📖 [dim]Found README file[/dim]")
+        if package_info:
+            console.print(f"📦 [dim]Found package configuration files[/dim]")
+        if user_context:
+            console.print(f"💡 [dim]Using context: {user_context[:60]}{'...' if len(user_context) > 60 else ''}[/dim]")
+        
+        console.print(f"\n🤖 [yellow]Sending analysis request to {self.model}...[/yellow]")
+        console.print(f"⏳ [dim]This may take a moment for large codebases[/dim]")
+        
         # Use templates from prompts.yaml
         templates_available = self.prompts_data and 'templates' in self.prompts_data
         
@@ -316,8 +331,8 @@ class OllamaCodeAgent:
                 else:
                     analysis_prompt = f"Create an OLLAMA.md file for a new project: {user_context}"
         
-        # Get AI to analyze and create OLLAMA.md
-        response = await self.chat(analysis_prompt)
+        # Get AI to analyze and create OLLAMA.md (disable ESC cancel for init)
+        response = await self.chat(analysis_prompt, enable_esc_cancel=False)
         
         # Extract the OLLAMA.md content from the response
         # Look for content between ```markdown and ``` or just use the whole response

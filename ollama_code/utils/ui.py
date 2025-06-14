@@ -52,8 +52,15 @@ def setup_esc_handler():
     
     def check_for_esc():
         """Check for ESC key press in a separate thread"""
+        # Small delay to avoid catching buffered input
+        time.sleep(0.5)
+        
         try:
             import msvcrt  # Windows
+            # Clear any buffered keystrokes
+            while msvcrt.kbhit():
+                msvcrt.getch()
+            
             while not cancel_event.is_set():
                 if msvcrt.kbhit():
                     key = msvcrt.getch()
@@ -67,6 +74,10 @@ def setup_esc_handler():
             old_settings = termios.tcgetattr(sys.stdin)
             try:
                 tty.setcbreak(sys.stdin.fileno())
+                # Clear any buffered input
+                while select.select([sys.stdin], [], [], 0)[0]:
+                    sys.stdin.read(1)
+                
                 while not cancel_event.is_set():
                     if select.select([sys.stdin], [], [], 0.1)[0]:
                         key = sys.stdin.read(1)
