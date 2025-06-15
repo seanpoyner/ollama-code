@@ -12,7 +12,7 @@ from rich.live import Live
 from ..core.sandbox import CodeSandbox
 from ..core.file_ops import create_file, read_file, list_files
 from ..core.thought_loop import ThoughtLoop
-from ..core.todos import TodoManager, TodoStatus
+from ..core.todos import TodoManager, TodoStatus, TodoPriority
 from ..integrations.mcp import FastMCPIntegration
 from ..utils.messages import get_message
 from ..utils.ui import detect_thinking_status, setup_esc_handler, display_code_execution, display_execution_result
@@ -293,15 +293,15 @@ class OllamaCodeAgent:
             
             console.print("[red]Please enter: y/yes, n/no, or a/all[/red]")
 
-    async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False, skip_task_breakdown=False):
+    async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False, skip_task_breakdown=False, is_task_execution=False):
         """Main chat interface with tool execution"""
         # Check if this needs task decomposition (unless explicitly skipped)
-        if skip_task_breakdown:
+        if skip_task_breakdown or is_task_execution:
             tasks, task_response = [], ""
         else:
             tasks, task_response = self.thought_loop.process_request(user_input)
         
-        if tasks and task_response:
+        if tasks and task_response and not is_task_execution:
             # Display task breakdown
             console.print(Panel(task_response, title="📋 Task Planning", border_style="cyan"))
             
@@ -309,19 +309,13 @@ class OllamaCodeAgent:
             console.print("\n📝 [cyan]Task List Created:[/cyan]")
             self.todo_manager.display_todos()
             
-            # Start with the first task immediately
-            console.print(f"\n🚀 [cyan]Starting with the first task...[/cyan]")
+            # IMPORTANT: Return immediately after creating tasks
+            # Don't let the AI continue working on tasks in this call
+            console.print(f"\n🚀 [cyan]Tasks created! Starting execution...[/cyan]")
             
-            # Get the first task context
-            first_task_context = self.thought_loop.get_next_task_context()
-            if first_task_context:
-                # Replace user input with the first task only
-                user_input = first_task_context
-                # Set auto_continue to True to continue through all tasks
-                auto_continue = True
-            else:
-                # Fallback if no task context available
-                user_input = f"{user_input}\n\n[System: Tasks have been created. Starting with the first one.]"
+            # Execute tasks in separate calls
+            await self._execute_tasks_sequentially(enable_esc_cancel)
+            return "Tasks completed"
         
         # Add hint for file creation requests
         if any(keyword in user_input.lower() for keyword in ['create', 'write', 'generate']) and \
@@ -455,29 +449,8 @@ class OllamaCodeAgent:
         # Add AI response to conversation
         self.conversation.append({'role': 'assistant', 'content': response})
         
-        # Check if we should continue with next task
-        if (auto_continue or self.auto_mode) and self.thought_loop.should_continue_tasks():
-            # Check if current task is in progress and we have execution results
-            in_progress_tasks = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
-            
-            # Only mark complete if we actually did something (had execution results or meaningful response)
-            if in_progress_tasks and (execution_results or len(response) > 100):
-                # Mark current task as complete
-                self.thought_loop.mark_current_task_complete()
-            
-            # Get next task
-            next_context = self.thought_loop.get_next_task_context()
-            if next_context:
-                console.print(f"\n{self.thought_loop.get_progress_summary()}")
-                
-                # Display updated todo list to show progress
-                console.print("\n📊 [cyan]Task Progress:[/cyan]")
-                self.todo_manager.display_todos()
-                
-                console.print(f"\n🔄 [cyan]Continuing with next task...[/cyan]")
-                # Recursively continue with next task - skip task breakdown for continuation
-                await self.chat(next_context, enable_esc_cancel=enable_esc_cancel, auto_continue=True, skip_task_breakdown=True)
-        
+        # Don't auto-continue if we're in task execution mode
+        # Task continuation is handled by _execute_tasks_sequentially
         return response
     
     async def init_project(self, force=False, user_context=""):
@@ -699,3 +672,54 @@ class OllamaCodeAgent:
         
         console.print(get_message('init.success'))
         logger.info(f"Created OLLAMA.md in {Path.cwd()}")
+    
+    async def _execute_tasks_sequentially(self, enable_esc_cancel=True):
+        """Execute tasks one by one in separate AI calls"""
+        while self.thought_loop.should_continue_tasks():
+            # Get the next task context
+            next_task_context = self.thought_loop.get_next_task_context()
+            if not next_task_context:
+                break
+            
+            # Clear conversation history to prevent AI from seeing previous tasks
+            # Keep only the system prompt
+            self.conversation = []
+            
+            # Add focused system message for this specific task
+            focused_system_prompt = (
+                "You are working on a SINGLE SPECIFIC TASK. "
+                "Complete ONLY the task given to you. "
+                "Do NOT work on any other tasks. "
+                "Do NOT reference or think about other tasks. "
+                "Focus entirely on the current task."
+            )
+            
+            self.conversation.append({
+                'role': 'system',
+                'content': focused_system_prompt
+            })
+            
+            # Execute this single task
+            await self.chat(
+                next_task_context, 
+                enable_esc_cancel=enable_esc_cancel,
+                auto_continue=False,  # Don't auto-continue within the task
+                skip_function_extraction=False,
+                skip_task_breakdown=True,  # Don't decompose the task further
+                is_task_execution=True  # Flag to indicate we're executing a task
+            )
+            
+            # Mark the current task as complete
+            in_progress_tasks = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
+            if in_progress_tasks:
+                self.thought_loop.mark_current_task_complete()
+            
+            # Show progress
+            console.print(f"\n{self.thought_loop.get_progress_summary()}")
+            
+            # Display updated todo list
+            pending_tasks = self.todo_manager.get_todos_by_status(TodoStatus.PENDING)
+            if pending_tasks:
+                console.print("\n📊 [cyan]Task Progress:[/cyan]")
+                self.todo_manager.display_todos()
+                console.print(f"\n🔄 [cyan]Moving to next task...[/cyan]")

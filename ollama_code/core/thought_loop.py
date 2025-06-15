@@ -56,7 +56,13 @@ class ThoughtLoop:
             'debug.*and.*fix',
             'refactor.*code',
             'add.*functionality',
-            'integrate.*with'
+            'integrate.*with',
+            'multiple.*steps',
+            'requires.*steps',
+            'improve.*project',
+            'enhance.*project',
+            'do.*something.*improve',
+            'several.*tasks'
         ]
         
         # Simple indicators that suggest it's NOT complex
@@ -128,6 +134,15 @@ class ThoughtLoop:
                 {"name": "Test the script", "priority": TodoPriority.MEDIUM},
                 {"name": "Document script usage in OLLAMA.md", "priority": TodoPriority.LOW}
             ]
+        elif 'improve' in request.lower() or 'enhance' in request.lower() or 'upgrade' in request.lower():
+            tasks = [
+                {"name": "Analyze current implementation", "priority": TodoPriority.HIGH},
+                {"name": "Identify areas for improvement", "priority": TodoPriority.HIGH},
+                {"name": "Implement first improvement", "priority": TodoPriority.HIGH},
+                {"name": "Implement additional enhancements", "priority": TodoPriority.MEDIUM},
+                {"name": "Test all changes", "priority": TodoPriority.MEDIUM},
+                {"name": "Update documentation", "priority": TodoPriority.LOW}
+            ]
         else:
             # Generic complex task breakdown
             tasks = [
@@ -190,8 +205,12 @@ class ThoughtLoop:
             pending = self.todo_manager.get_todos_by_status(TodoStatus.PENDING)
             
             # Create focused context for this specific task
-            context = f"Working on: {next_todo.content}\n\n"
-            context += "[System: Focus ONLY on this specific task. Do not attempt other tasks from the todo list.]\n"
+            context = f"Please complete the following task:\n\n{next_todo.content}\n\n"
+            context += "Instructions:\n"
+            context += "- Focus ONLY on this specific task\n"
+            context += "- Complete the task thoroughly\n"
+            context += "- Do NOT attempt to work on any other tasks\n"
+            context += "- When done, provide a brief summary of what you accomplished"
             
             # Add specific guidance for information gathering tasks
             if "gather" in next_todo.content.lower() or "analyze" in next_todo.content.lower():
@@ -214,14 +233,8 @@ class ThoughtLoop:
                 context += "\n  - Usage instructions"
                 context += "\n- Keep the documentation concise and helpful\n"
             
-            if completed:
-                context += "\nPreviously completed:\n"
-                for todo in completed[-3:]:  # Last 3 completed tasks
-                    context += f"- {todo.content}\n"
-            
-            # Add remaining task count for context
-            if pending:
-                context += f"\n[Note: {len(pending)} tasks remaining after this one]"
+            # Don't include information about other tasks to maintain focus
+            # The AI should only know about the current task
             
             return context
         return None
