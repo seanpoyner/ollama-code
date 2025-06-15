@@ -773,10 +773,20 @@ class OllamaCodeAgent:
                 console.print("[dim]Moving to next task...[/dim]")
             
             # Mark the current task as complete only if not cancelled
-            if not cancelled_all:
+            if not cancelled_all and result and "Request cancelled" not in result:
                 in_progress_tasks = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
                 if in_progress_tasks:
-                    self.thought_loop.mark_current_task_complete()
+                    # Extract task summary from result
+                    task_summary = self._extract_task_summary(result)
+                    
+                    # Validate task completion for certain task types
+                    current_task = in_progress_tasks[0]
+                    if self._needs_validation(current_task.content):
+                        if not self._validate_task_completion(current_task.content, result):
+                            console.print("\n⚠️ [yellow]Task not properly completed - no files were created[/yellow]")
+                            task_summary = "Task attempted but no files were created"
+                    
+                    self.thought_loop.mark_current_task_complete(task_summary)
             
             # Show progress
             console.print(f"\n{self.thought_loop.get_progress_summary()}")
@@ -827,3 +837,74 @@ class OllamaCodeAgent:
         ]
         input_lower = input_text.lower()
         return any(keyword in input_lower for keyword in analysis_keywords)
+    
+    def _extract_task_summary(self, result: str) -> str:
+        """Extract a summary of what was accomplished from the AI response"""
+        # Look for common summary patterns
+        import re
+        
+        # Try to find explicit summaries
+        summary_patterns = [
+            r'summary[:\s]+(.+?)(?:\n\n|$)',
+            r'accomplished[:\s]+(.+?)(?:\n\n|$)',
+            r'created[:\s]+(.+?)(?:\n\n|$)',
+            r'implemented[:\s]+(.+?)(?:\n\n|$)',
+            r'results?[:\s]+(.+?)(?:\n\n|$)'
+        ]
+        
+        for pattern in summary_patterns:
+            match = re.search(pattern, result, re.IGNORECASE | re.DOTALL)
+            if match:
+                summary = match.group(1).strip()
+                # Limit length
+                if len(summary) > 200:
+                    summary = summary[:197] + "..."
+                return summary
+        
+        # Look for files created
+        file_patterns = [
+            r'write_file\(["\']([^"\'])+["\']',
+            r'created?\s+(?:file|script)[:\s]+([^\n]+)',
+            r'wrote\s+([^\n]+\.\w+)'
+        ]
+        
+        created_files = []
+        for pattern in file_patterns:
+            matches = re.findall(pattern, result, re.IGNORECASE)
+            created_files.extend(matches)
+        
+        if created_files:
+            return f"Created files: {', '.join(set(created_files[:5]))}"
+        
+        # Default: extract first meaningful line
+        lines = result.strip().split('\n')
+        for line in lines:
+            line = line.strip()
+            if len(line) > 20 and not line.startswith('#') and not line.startswith('```'):
+                return line[:200] + "..." if len(line) > 200 else line
+        
+        return "Task executed"
+    
+    def _needs_validation(self, task_content: str) -> bool:
+        """Check if a task needs validation of completion"""
+        validation_keywords = [
+            'create', 'write', 'implement', 'develop', 'build',
+            'script', 'file', 'test', 'unit test', 'endpoint',
+            'function', 'tool', 'backend', 'integration'
+        ]
+        task_lower = task_content.lower()
+        return any(keyword in task_lower for keyword in validation_keywords)
+    
+    def _validate_task_completion(self, task_content: str, result: str) -> bool:
+        """Validate that a task was actually completed"""
+        # Check if files were created when they should have been
+        if any(word in task_content.lower() for word in ['create', 'write', 'develop', 'implement']):
+            # Look for write_file calls
+            return 'write_file(' in result
+        
+        # For test tasks, check if tests were actually written
+        if 'test' in task_content.lower():
+            return 'def test_' in result or 'write_file(' in result
+        
+        # Default to true for other tasks
+        return True

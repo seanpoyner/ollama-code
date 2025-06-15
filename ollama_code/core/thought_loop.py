@@ -21,6 +21,7 @@ class ThoughtLoop:
         self.thinking_steps = []
         self.model_name = model_name
         self.task_planner = AITaskPlanner(model_name) if model_name else None
+        self.task_results = {}  # Store results from completed tasks
     
     def process_request(self, request: str) -> Tuple[List[Dict], str]:
         """
@@ -191,8 +192,19 @@ class ThoughtLoop:
             completed = self.todo_manager.get_todos_by_status(TodoStatus.COMPLETED)
             pending = self.todo_manager.get_todos_by_status(TodoStatus.PENDING)
             
+            # Include results from previous tasks
+            previous_results = ""
+            if completed:
+                previous_results = "\n## Results from Previous Tasks:\n"
+                for task in completed:
+                    if task.id in self.task_results:
+                        previous_results += f"\n### {task.content}\n"
+                        previous_results += f"{self.task_results[task.id]}\n"
+            
             # Create focused context for this specific task
             context = f"Please complete the following task:\n\n{next_todo.content}\n\n"
+            if previous_results:
+                context += previous_results + "\n"
             context += "Instructions:\n"
             context += "- Focus ONLY on this specific task\n"
             context += "- Complete the task thoroughly\n"
@@ -207,7 +219,12 @@ class ThoughtLoop:
             context += "1. Use read_file() to read OLLAMA.md for project context\n"
             context += "2. Use list_files() to see what files exist in the project\n"
             context += "3. Use bash('ls -la') to see all files including hidden ones\n"
-            context += "4. Actually implement what the task asks for - don't just say it's not possible!"
+            context += "4. Actually implement what the task asks for - don't just say it's not possible!\n\n"
+            
+            # Add explicit project context
+            context += "PROJECT CONTEXT: You are building a backend integration for the Ollama model API.\n"
+            context += "This is a NEW feature being added to the existing ollama-code project.\n"
+            context += "You need to CREATE new Python files that interact with the Ollama API.\n\n"
             
             # Add specific guidance for information gathering tasks
             if "gather" in next_todo.content.lower() or "analyze" in next_todo.content.lower():
@@ -242,6 +259,39 @@ class ThoughtLoop:
                 context += "\n   - Multi-line f-strings or complex string formatting"
                 context += "\n   - Writing more than necessary for analysis\n"
             
+            # Add specific guidance for file creation tasks
+            elif any(word in next_todo.content.lower() for word in ['create', 'write', 'develop', 'implement', 'script', 'test']):
+                context += "\n[CRITICAL: File Creation Requirements]\n"
+                context += "\nYou MUST create actual files using write_file()!\n"
+                
+                if 'test' in next_todo.content.lower():
+                    context += "\nFor unit tests:\n"
+                    context += "```python\n"
+                    context += 'write_file("test_ollama_models.py", """\n'
+                    context += 'import unittest\n'
+                    context += 'from ollama_models import check_available_models\n\n'
+                    context += 'class TestOllamaModels(unittest.TestCase):\n'
+                    context += '    def test_check_models(self):\n'
+                    context += '        # Your test code here\n'
+                    context += '        pass\n'
+                    context += '""")\n'
+                    context += "```\n"
+                elif 'script' in next_todo.content.lower() or 'fetch' in next_todo.content.lower():
+                    context += "\nFor scripts that interact with Ollama API:\n"
+                    context += "```python\n"
+                    context += 'write_file("ollama_models.py", """\n'
+                    context += 'import requests\n'
+                    context += 'import json\n\n'
+                    context += 'def check_available_models():\n'
+                    context += '    """Check what models are available in Ollama"""\n'
+                    context += '    # Implementation here\n'
+                    context += '    pass\n'
+                    context += '""")\n'
+                    context += "```\n"
+                    context += "\nRemember: The Ollama API endpoint is typically http://localhost:11434/api/tags\n"
+                
+                context += "\nDO NOT just show code - actually CREATE the files!\n"
+            
             # Add specific guidance for OLLAMA.md update tasks
             elif "ollama.md" in next_todo.content.lower() and ("update" in next_todo.content.lower() or "document" in next_todo.content.lower()):
                 context += "\n[Guidance for updating OLLAMA.md:]"
@@ -260,8 +310,8 @@ class ThoughtLoop:
             return context
         return None
     
-    def mark_current_task_complete(self):
-        """Mark the current in-progress task as complete"""
+    def mark_current_task_complete(self, result: str = None):
+        """Mark the current in-progress task as complete and store result"""
         in_progress = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
         if in_progress:
             task = in_progress[0]
@@ -269,6 +319,9 @@ class ThoughtLoop:
                 task.id,
                 status=TodoStatus.COMPLETED.value
             )
+            # Store the result if provided
+            if result:
+                self.task_results[task.id] = result
             # Display completion message
             console.print(f"\n✅ [green]Task completed:[/green] {task.content}")
     

@@ -109,6 +109,17 @@ code:
     
     DO NOT skip ahead or combine tasks!
     
+    CRITICAL FOR BACKEND INTEGRATION TASKS:
+    When asked to create backend integration or tools:
+    1. CREATE NEW Python files - don't modify existing frontend files
+    2. Use the Ollama Python library: import ollama
+    3. The Ollama API runs on http://localhost:11434
+    4. Common endpoints:
+       - GET /api/tags - List available models
+       - POST /api/generate - Generate completion
+       - POST /api/chat - Chat with a model
+    5. ALWAYS use write_file() to create the actual files
+    
     CRITICAL FOR INFORMATION GATHERING TASKS:
     When analyzing or gathering information about a project:
     1. ALWAYS read files COMPLETELY using read_file() - never just read portions
