@@ -1,4 +1,4 @@
-"""AI-powered task planning using Ollama"""
+"""Task planning using Ollama"""
 
 import json
 import re

@@ -7,7 +7,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from .todos import TodoManager, TodoStatus, TodoPriority
-from .ai_task_planner import AITaskPlanner
+from .task_planner import AITaskPlanner
 
 console = Console()
 
