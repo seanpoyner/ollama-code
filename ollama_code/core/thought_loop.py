@@ -221,11 +221,6 @@ class ThoughtLoop:
             context += "3. Use bash('ls -la') to see all files including hidden ones\n"
             context += "4. Actually implement what the task asks for - don't just say it's not possible!\n\n"
             
-            # Add explicit project context
-            context += "PROJECT CONTEXT: You are building a backend integration for the Ollama model API.\n"
-            context += "This is a NEW feature being added to the existing ollama-code project.\n"
-            context += "You need to CREATE new Python files that interact with the Ollama API.\n\n"
-            
             # Add specific guidance for information gathering tasks
             if "gather" in next_todo.content.lower() or "analyze" in next_todo.content.lower():
                 context += "\n[CRITICAL: Information Gathering Requirements]"
