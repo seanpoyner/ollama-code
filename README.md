@@ -19,6 +19,25 @@ A powerful coding assistant powered by Ollama models with code execution capabil
 
 ## Installation
 
+### Windows Installation
+
+```powershell
+# Clone the repository
+git clone https://github.com/yourusername/ollama-code.git
+cd ollama-code
+
+# Run the Windows installer (PowerShell)
+.\install_windows.ps1
+
+# Or use the batch file
+install_windows.bat
+
+# Or install manually
+pip install ollama rich requests pyyaml chromadb
+```
+
+### Linux/macOS Installation
+
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/ollama-code.git
@@ -30,6 +49,12 @@ pip install -e .
 # Or install with optional dependencies
 pip install -e ".[docker,mcp]"
 ```
+
+### Requirements
+
+- Python 3.8+
+- Ollama running locally
+- ChromaDB for vector-based documentation search
 
 ## Usage
 
