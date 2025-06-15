@@ -1,3 +1,13 @@
-- the esc feature only exits the agents current task and doesn't break the agent off for user input.
+## Fixed Issues
+- ✅ ESC feature now prompts to stop all tasks or just current one
+- ✅ File creation fix - AI now uses write_file() instead of showing code
+- ✅ File exploration - AI reads complete files, not just 50 chars
+- ✅ Task orchestration - Results passed between tasks
+- ✅ Task validation - Ensures files are actually created
+- ✅ Analysis truncation - Prevents syntax errors from long responses
+
+## Remaining Issues
 - implement mcp servers
 - implement github integrations
+- Add better error recovery when tasks fail
+- Add task retry mechanism for failed tasks
