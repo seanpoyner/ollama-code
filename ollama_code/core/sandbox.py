@@ -89,8 +89,13 @@ class CodeSandbox:
     
     def _execute_subprocess_python(self, code, timeout):
         """Execute Python using subprocess"""
+        import queue
+        import threading
+        
         temp_file = None
         confirmation_file = None
+        confirmation_queue = queue.Queue()
+        
         try:
             # Create a temporary file for confirmation results
             with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
@@ -259,20 +264,24 @@ def bash(command):
                             
                             if request.get('action') == 'write_file' and self.write_confirmation_callback:
                                 logger.info(f"Requesting confirmation for file: {request['filename']}")
-                                # Get confirmation from user
-                                approved, feedback = self.write_confirmation_callback(
-                                    request['filename'],
-                                    request['content']
-                                )
+                                # Put request in queue for main thread to handle
+                                confirmation_queue.put(('write_file', request))
                                 
-                                # Write response
-                                response = {
-                                    'approved': approved,
-                                    'feedback': feedback
-                                }
-                                with open(confirmation_file, 'w', encoding='utf-8') as f:
-                                    json.dump(response, f)
-                                logger.info(f"Confirmation response: approved={approved}")
+                                # Wait for response from main thread
+                                response_received = False
+                                for _ in range(1200):  # Wait up to 2 minutes
+                                    try:
+                                        with open(confirmation_file, 'r', encoding='utf-8') as f:
+                                            response_data = json.load(f)
+                                            if 'approved' in response_data:
+                                                response_received = True
+                                                break
+                                    except:
+                                        pass
+                                    time.sleep(0.1)
+                                
+                                if not response_received:
+                                    logger.error("Timeout waiting for confirmation response")
                         except Exception as e:
                             logger.error(f"Error handling confirmation: {e}")
                     
@@ -297,10 +306,34 @@ def bash(command):
             stdout_thread.start()
             stderr_thread.start()
             
-            # Wait for process to complete
-            process.wait(timeout=timeout)
+            # Monitor confirmation queue in main thread
+            while process.poll() is None:  # While process is running
+                try:
+                    # Check for confirmation requests (non-blocking)
+                    action, request = confirmation_queue.get(timeout=0.1)
+                    
+                    if action == 'write_file' and self.write_confirmation_callback:
+                        # Handle confirmation in main thread
+                        approved, feedback = self.write_confirmation_callback(
+                            request['filename'],
+                            request['content']
+                        )
+                        
+                        # Write response
+                        response = {
+                            'approved': approved,
+                            'feedback': feedback
+                        }
+                        with open(confirmation_file, 'w', encoding='utf-8') as f:
+                            json.dump(response, f)
+                        logger.info(f"Confirmation response written: approved={approved}")
+                except queue.Empty:
+                    # No confirmation requests, continue monitoring
+                    pass
+                except Exception as e:
+                    logger.error(f"Error processing confirmation: {e}")
             
-            # Wait for threads to finish reading
+            # Process has finished, wait for threads to finish reading
             stdout_thread.join(timeout=1)
             stderr_thread.join(timeout=1)
             

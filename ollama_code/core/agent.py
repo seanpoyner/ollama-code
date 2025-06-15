@@ -125,11 +125,13 @@ class OllamaCodeAgent:
         
         # Ask for confirmation
         while True:
+            logger.info(f"Prompting user for file write confirmation: {filename}")
             choice = Prompt.ask(
                 "[cyan]Approve this file write?[/cyan]",
                 choices=["y", "yes", "n", "no", "a", "all"],
                 default="y"
             )
+            logger.info(f"User choice for {filename}: {choice}")
             
             choice = choice.lower()
             
@@ -276,11 +278,13 @@ class OllamaCodeAgent:
         
         # Ask for confirmation
         while True:
+            logger.info(f"Prompting user for bash command confirmation: {command}")
             choice = Prompt.ask(
                 "[cyan]Execute this command?[/cyan]",
                 choices=["y", "yes", "n", "no", "a", "all"],
                 default="n" if is_dangerous else "y"
             )
+            logger.info(f"User choice for command: {choice}")
             
             choice = choice.lower()
             
