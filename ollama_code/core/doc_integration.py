@@ -9,6 +9,8 @@ import logging
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 # Try to import vector store first, fall back to SQLite cache if not available
 try:
     from .doc_vector_store import DocVectorStore as DocCache, DocEntry
@@ -19,8 +21,6 @@ except ImportError:
 
 from .web_search import WebSearcher
 from .knowledge_base import KnowledgeBase, TaskContext
-
-logger = logging.getLogger(__name__)
 
 
 class DocumentationAssistant:
