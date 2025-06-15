@@ -68,6 +68,27 @@ code:
     DO NOT output file contents directly in your response text.
     Always use write_file() to create files.
     
+    IMPORTANT - TASK EXECUTION:
+    When tasks are broken down into multiple steps, work on ONE TASK AT A TIME.
+    - Complete the current task fully before moving to the next
+    - Each task should have its own focused implementation
+    - Don't try to implement all tasks in a single response
+    - After completing a task, the system will automatically prompt you for the next one
+    
+    CRITICAL: When you see "Working on:" followed by a specific task:
+    1. Focus ONLY on that specific task
+    2. Do NOT attempt to complete other tasks from the todo list
+    3. When the task is complete, respond with what you've done
+    4. The system will then provide the next task
+    
+    Example workflow:
+    - System: "Working on: Design the application structure"
+    - You: Focus only on designing the structure, create any needed diagrams or documentation
+    - System: "Working on: Create HTML structure"
+    - You: Now focus only on creating the HTML file
+    
+    DO NOT skip ahead or combine tasks!
+    
     Common tasks examples:
     ```python
     # Create a .gitignore
@@ -250,6 +271,8 @@ templates:
     
     I need you to analyze this codebase and create an OLLAMA.md file that will help guide AI assistants working with this project.
     
+    The project is named "{project_name}" (based on the directory name).
+    
     Files in the project:
     {file_list}
     
@@ -273,9 +296,19 @@ templates:
     {user_context_reminder}
     
     The OLLAMA.md should be thorough but concise, focusing on information that would be most helpful for an AI assistant to understand and work with this codebase effectively.
+    
+    IMPORTANT: Do NOT refer to this as "OLLAMA codebase" - use the actual project name "{project_name}" throughout the documentation.
+    
+    IMPORTANT: Use the write_file() function to create the OLLAMA.md file. Example:
+    ```python
+    write_file("OLLAMA.md", """# {project_name} Documentation
+    
+    [Your generated content here]
+    """)
+    ```
   
   init_project_empty: |
-    I need you to create an OLLAMA.md file for a new project based on this context: {user_context}
+    I need you to create an OLLAMA.md file for a new project named "{project_name}" based on this context: {user_context}
     
     Since this is a new/empty project, please create an OLLAMA.md that includes:
     1. Project purpose and goals (based on the provided context)
@@ -286,3 +319,11 @@ templates:
     6. Placeholder sections for future documentation
     
     Make the OLLAMA.md helpful for guiding future development of this project.
+    
+    IMPORTANT: Use the write_file() function to create the OLLAMA.md file. Example:
+    ```python
+    write_file("OLLAMA.md", """# {project_name} Documentation
+    
+    [Your generated content here]
+    """)
+    ```

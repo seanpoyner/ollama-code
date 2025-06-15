@@ -99,38 +99,44 @@ class ThoughtLoop:
         # Common task patterns based on request type
         if 'web' in request.lower() and ('gui' in request.lower() or 'interface' in request.lower()):
             tasks = [
+                {"name": "Gather information about the project context and requirements", "priority": TodoPriority.HIGH},
                 {"name": "Design the application structure", "priority": TodoPriority.HIGH},
                 {"name": "Create HTML structure", "priority": TodoPriority.HIGH},
                 {"name": "Add CSS styling", "priority": TodoPriority.MEDIUM},
                 {"name": "Implement JavaScript functionality", "priority": TodoPriority.HIGH},
                 {"name": "Add API integration", "priority": TodoPriority.HIGH},
-                {"name": "Test and refine the interface", "priority": TodoPriority.MEDIUM}
+                {"name": "Test and refine the interface", "priority": TodoPriority.MEDIUM},
+                {"name": "Update OLLAMA.md with project documentation", "priority": TodoPriority.LOW}
             ]
         elif 'api' in request.lower() or 'backend' in request.lower():
             tasks = [
+                {"name": "Analyze existing codebase and gather requirements", "priority": TodoPriority.HIGH},
                 {"name": "Define API endpoints", "priority": TodoPriority.HIGH},
                 {"name": "Set up server framework", "priority": TodoPriority.HIGH},
                 {"name": "Implement data models", "priority": TodoPriority.HIGH},
                 {"name": "Create route handlers", "priority": TodoPriority.HIGH},
                 {"name": "Add error handling", "priority": TodoPriority.MEDIUM},
-                {"name": "Write API documentation", "priority": TodoPriority.LOW}
+                {"name": "Write API documentation", "priority": TodoPriority.LOW},
+                {"name": "Update OLLAMA.md with API details", "priority": TodoPriority.LOW}
             ]
         elif 'script' in request.lower() or 'automate' in request.lower():
             tasks = [
-                {"name": "Analyze requirements", "priority": TodoPriority.HIGH},
+                {"name": "Gather information and analyze requirements", "priority": TodoPriority.HIGH},
                 {"name": "Design script structure", "priority": TodoPriority.HIGH},
                 {"name": "Implement core functionality", "priority": TodoPriority.HIGH},
                 {"name": "Add error handling", "priority": TodoPriority.MEDIUM},
-                {"name": "Test the script", "priority": TodoPriority.MEDIUM}
+                {"name": "Test the script", "priority": TodoPriority.MEDIUM},
+                {"name": "Document script usage in OLLAMA.md", "priority": TodoPriority.LOW}
             ]
         else:
             # Generic complex task breakdown
             tasks = [
-                {"name": "Understand and analyze requirements", "priority": TodoPriority.HIGH},
+                {"name": "Gather project context and analyze requirements", "priority": TodoPriority.HIGH},
                 {"name": "Design the solution architecture", "priority": TodoPriority.HIGH},
                 {"name": "Implement core functionality", "priority": TodoPriority.HIGH},
                 {"name": "Add supporting features", "priority": TodoPriority.MEDIUM},
-                {"name": "Test and refine", "priority": TodoPriority.MEDIUM}
+                {"name": "Test and refine", "priority": TodoPriority.MEDIUM},
+                {"name": "Update project documentation", "priority": TodoPriority.LOW}
             ]
         
         # Customize tasks based on specific request details
@@ -160,7 +166,7 @@ class ThoughtLoop:
             emoji = priority_emoji.get(task["priority"], "⚪")
             response += f"{i}. {emoji} {task['name']}\n"
         
-        response += "\nLet me start with the first task..."
+        response += "\nI'll work through these tasks one at a time."
         return response
     
     def get_next_task_context(self) -> Optional[str]:
@@ -181,12 +187,41 @@ class ThoughtLoop:
             
             # Build context from previous completed tasks
             completed = self.todo_manager.get_todos_by_status(TodoStatus.COMPLETED)
-            context = f"Working on: {next_todo.content}\n"
+            pending = self.todo_manager.get_todos_by_status(TodoStatus.PENDING)
+            
+            # Create focused context for this specific task
+            context = f"Working on: {next_todo.content}\n\n"
+            context += "[System: Focus ONLY on this specific task. Do not attempt other tasks from the todo list.]\n"
+            
+            # Add specific guidance for information gathering tasks
+            if "gather" in next_todo.content.lower() or "analyze" in next_todo.content.lower():
+                context += "\n[Guidance for information gathering:]"
+                context += "\n- Use read_file() to examine OLLAMA.md if it exists"
+                context += "\n- Use list_files() to explore the project structure"
+                context += "\n- Look for README files, configuration files, and key source files"
+                context += "\n- Ask clarifying questions if needed"
+                context += "\n- Summarize your findings\n"
+            
+            # Add specific guidance for OLLAMA.md update tasks
+            elif "ollama.md" in next_todo.content.lower() and ("update" in next_todo.content.lower() or "document" in next_todo.content.lower()):
+                context += "\n[Guidance for updating OLLAMA.md:]"
+                context += "\n- Use read_file('OLLAMA.md') to check current content"
+                context += "\n- If it doesn't exist, create it with write_file()"
+                context += "\n- Add or update sections based on work completed:"
+                context += "\n  - New features implemented"
+                context += "\n  - API endpoints created"
+                context += "\n  - Configuration changes"
+                context += "\n  - Usage instructions"
+                context += "\n- Keep the documentation concise and helpful\n"
             
             if completed:
                 context += "\nPreviously completed:\n"
                 for todo in completed[-3:]:  # Last 3 completed tasks
                     context += f"- {todo.content}\n"
+            
+            # Add remaining task count for context
+            if pending:
+                context += f"\n[Note: {len(pending)} tasks remaining after this one]"
             
             return context
         return None

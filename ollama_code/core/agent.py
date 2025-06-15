@@ -12,7 +12,7 @@ from rich.live import Live
 from ..core.sandbox import CodeSandbox
 from ..core.file_ops import create_file, read_file, list_files
 from ..core.thought_loop import ThoughtLoop
-from ..core.todos import TodoManager
+from ..core.todos import TodoManager, TodoStatus
 from ..integrations.mcp import FastMCPIntegration
 from ..utils.messages import get_message
 from ..utils.ui import detect_thinking_status, setup_esc_handler, display_code_execution, display_execution_result
@@ -293,10 +293,13 @@ class OllamaCodeAgent:
             
             console.print("[red]Please enter: y/yes, n/no, or a/all[/red]")
 
-    async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False):
+    async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False, skip_task_breakdown=False):
         """Main chat interface with tool execution"""
-        # Check if this needs task decomposition
-        tasks, task_response = self.thought_loop.process_request(user_input)
+        # Check if this needs task decomposition (unless explicitly skipped)
+        if skip_task_breakdown:
+            tasks, task_response = [], ""
+        else:
+            tasks, task_response = self.thought_loop.process_request(user_input)
         
         if tasks and task_response:
             # Display task breakdown
@@ -306,8 +309,19 @@ class OllamaCodeAgent:
             console.print("\n📝 [cyan]Task List Created:[/cyan]")
             self.todo_manager.display_todos()
             
-            # Add system message about task breakdown
-            user_input = f"{user_input}\n\n[System: I've broken this down into {len(tasks)} tasks. Please work through them systematically.]"
+            # Start with the first task immediately
+            console.print(f"\n🚀 [cyan]Starting with the first task...[/cyan]")
+            
+            # Get the first task context
+            first_task_context = self.thought_loop.get_next_task_context()
+            if first_task_context:
+                # Replace user input with the first task only
+                user_input = first_task_context
+                # Set auto_continue to True to continue through all tasks
+                auto_continue = True
+            else:
+                # Fallback if no task context available
+                user_input = f"{user_input}\n\n[System: Tasks have been created. Starting with the first one.]"
         
         # Add hint for file creation requests
         if any(keyword in user_input.lower() for keyword in ['create', 'write', 'generate']) and \
@@ -443,8 +457,13 @@ class OllamaCodeAgent:
         
         # Check if we should continue with next task
         if (auto_continue or self.auto_mode) and self.thought_loop.should_continue_tasks():
-            # Mark current task as complete if there was one
-            self.thought_loop.mark_current_task_complete()
+            # Check if current task is in progress and we have execution results
+            in_progress_tasks = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
+            
+            # Only mark complete if we actually did something (had execution results or meaningful response)
+            if in_progress_tasks and (execution_results or len(response) > 100):
+                # Mark current task as complete
+                self.thought_loop.mark_current_task_complete()
             
             # Get next task
             next_context = self.thought_loop.get_next_task_context()
@@ -456,8 +475,8 @@ class OllamaCodeAgent:
                 self.todo_manager.display_todos()
                 
                 console.print(f"\n🔄 [cyan]Continuing with next task...[/cyan]")
-                # Recursively continue with next task
-                await self.chat(next_context, enable_esc_cancel=enable_esc_cancel, auto_continue=True)
+                # Recursively continue with next task - skip task breakdown for continuation
+                await self.chat(next_context, enable_esc_cancel=enable_esc_cancel, auto_continue=True, skip_task_breakdown=True)
         
         return response
     
@@ -605,14 +624,18 @@ class OllamaCodeAgent:
             console.print("⚠️ [yellow]Warning: prompts.yaml templates not available. Using basic prompt.[/yellow]")
             logger.warning("prompts.yaml templates not available for init command")
             # Create a basic prompt without templates
+            project_name = Path.cwd().name
             if code_files:
-                analysis_prompt = f"Please analyze this codebase and create an OLLAMA.md file. Project has {len(code_files)} files. User context: {user_context}"
+                analysis_prompt = f"Please analyze this '{project_name}' project and create an OLLAMA.md file. Project has {len(code_files)} files. User context: {user_context}. IMPORTANT: Do NOT call this 'OLLAMA codebase' - use the actual project name '{project_name}'."
             else:
-                analysis_prompt = f"Create an OLLAMA.md file for a new project: {user_context}"
+                analysis_prompt = f"Create an OLLAMA.md file for a new project named '{project_name}': {user_context}"
         else:
             templates = self.prompts_data['templates']
             
             if code_files and 'init_project_with_files' in templates:
+                # Get project name from directory
+                project_name = Path.cwd().name
+                
                 # Prepare template variables
                 user_context_section = f"User-provided context about this project: {user_context}" if user_context else ""
                 readme_section = f"README content:\n{readme_content}" if readme_content else "No README found"
@@ -622,6 +645,7 @@ class OllamaCodeAgent:
                 user_context_reminder = f"Make sure to incorporate this context: '{user_context}'" if user_context else ""
                 
                 analysis_prompt = templates['init_project_with_files'].format(
+                    project_name=project_name,
                     user_context_section=user_context_section,
                     file_list=file_list,
                     readme_section=readme_section,
@@ -631,62 +655,27 @@ class OllamaCodeAgent:
                     user_context_reminder=user_context_reminder
                 )
             elif not code_files and 'init_project_empty' in templates:
+                # Get project name from directory
+                project_name = Path.cwd().name
+                
                 analysis_prompt = templates['init_project_empty'].format(
+                    project_name=project_name,
                     user_context=user_context
                 )
             else:
                 console.print("⚠️ [yellow]Warning: Required template not found in prompts.yaml[/yellow]")
                 # Create a basic prompt
+                project_name = Path.cwd().name
                 if code_files:
-                    analysis_prompt = f"Please analyze this codebase and create an OLLAMA.md file. Project has {len(code_files)} files. User context: {user_context}"
+                    analysis_prompt = f"Please analyze this '{project_name}' project and create an OLLAMA.md file. Project has {len(code_files)} files. User context: {user_context}. IMPORTANT: Do NOT call this 'OLLAMA codebase' - use the actual project name '{project_name}'."
                 else:
-                    analysis_prompt = f"Create an OLLAMA.md file for a new project: {user_context}"
+                    analysis_prompt = f"Create an OLLAMA.md file for a new project named '{project_name}': {user_context}"
         
-        # Get AI to analyze and create OLLAMA.md (disable ESC cancel and function extraction for init)
-        response = await self.chat(analysis_prompt, enable_esc_cancel=False, skip_function_extraction=True)
+        # Get AI to analyze and create OLLAMA.md (disable ESC cancel and task breakdown for init, but ENABLE function extraction)
+        response = await self.chat(analysis_prompt, enable_esc_cancel=False, skip_function_extraction=False, skip_task_breakdown=True)
         
-        # Extract the OLLAMA.md content from the response
-        # Look for content between ```markdown and ``` or just use the whole response
-        import re
+        # No need to extract content - the AI will use write_file() to create OLLAMA.md
         import json
-        
-        # Try to find markdown code block - use a more robust approach
-        # First try to find ```markdown or ```md blocks
-        md_matches = list(re.finditer(r'```(?:markdown|md)?\n', response))
-        ollama_md_content = response  # Default to whole response
-        
-        if md_matches:
-            # Find the matching closing ``` for the first markdown block
-            start_pos = md_matches[0].end()
-            # Count nested code blocks to find the correct closing ```
-            block_count = 1
-            pos = start_pos
-            while block_count > 0 and pos < len(response):
-                if response[pos:pos+3] == '```':
-                    # Check if this is opening or closing
-                    # Look back to see if we're at start of line
-                    line_start = response.rfind('\n', 0, pos) + 1
-                    if line_start == pos or response[line_start:pos].strip() == '':
-                        # This is a code fence at start of line
-                        # Check if it's followed by a language identifier (opening) or newline (closing)
-                        next_newline = response.find('\n', pos)
-                        if next_newline == -1:
-                            next_newline = len(response)
-                        fence_content = response[pos+3:next_newline].strip()
-                        if not fence_content or fence_content.isspace():
-                            # Closing fence
-                            block_count -= 1
-                            if block_count == 0:
-                                ollama_md_content = response[start_pos:pos].rstrip()
-                                break
-                        else:
-                            # Opening fence
-                            block_count += 1
-                pos += 1
-        
-        # Write OLLAMA.md
-        with open(ollama_md_path, 'w', encoding='utf-8') as f:
-            f.write(ollama_md_content)
         
         # Create .ollama-code directory and settings.local.json
         ollama_code_dir = Path.cwd() / '.ollama-code'
