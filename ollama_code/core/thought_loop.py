@@ -8,6 +8,7 @@ from rich.text import Text
 
 from .todos import TodoManager, TodoStatus, TodoPriority
 from .task_planner import AITaskPlanner
+from .subtask_manager import SubTaskManager, SubTask, SubTaskType
 
 console = Console()
 
@@ -22,6 +23,7 @@ class ThoughtLoop:
         self.model_name = model_name
         self.task_planner = AITaskPlanner(model_name) if model_name else None
         self.task_results = {}  # Store results from completed tasks
+        self.current_subtask_manager = None  # Current sub-task manager
     
     def process_request(self, request: str) -> Tuple[List[Dict], str]:
         """
@@ -188,6 +190,14 @@ class ThoughtLoop:
             color = priority_colors.get(next_todo.priority, "white")
             console.print(f"\n🚀 [cyan]Starting task:[/cyan] [{color}]{next_todo.content}[/{color}]")
             
+            # Create sub-tasks for this task
+            subtask_manager = SubTaskManager()
+            subtasks = subtask_manager.create_subtasks_for_task(next_todo.content)
+            if subtasks:
+                console.print(f"\n🔧 [dim]Breaking down into {len(subtasks)} sub-tasks[/dim]")
+                # Store subtask manager for this task
+                self.current_subtask_manager = subtask_manager
+            
             # Build context from previous completed tasks
             completed = self.todo_manager.get_todos_by_status(TodoStatus.COMPLETED)
             pending = self.todo_manager.get_todos_by_status(TodoStatus.PENDING)
@@ -208,127 +218,77 @@ class ThoughtLoop:
             context = f"Please complete the following task:\n\n{next_todo.content}\n\n"
             if previous_results:
                 context += previous_results + "\n"
-            context += "Instructions:\n"
-            context += "- Focus ONLY on this specific task\n"
-            context += "- Complete the task thoroughly\n"
-            context += "- Do NOT attempt to work on any other tasks\n"
-            context += "- When done, provide a brief summary of what you accomplished\n\n"
-            context += "IMPORTANT: When creating files, you MUST use the write_file() function in a Python code block:\n"
+            
+            context += "EXECUTION RULES:\n"
+            context += "1. EXECUTE CODE DIRECTLY - Do not explain what you would do\n"
+            context += "2. Use SEPARATE code blocks for each action\n"
+            context += "3. NEVER show write_file() inside explanatory text\n"
+            context += "4. Execute commands ONE AT A TIME\n\n"
+            
+            context += "CORRECT APPROACH:\n"
+            context += "Step 1: Execute any exploration (if needed)\n"
             context += "```python\n"
-            context += 'write_file("filename.ext", """file contents here""")\n'
-            context += "```\n"
-            context += "Do NOT just show file contents in code blocks - actually create them!\n\n"
-            context += "CRITICAL: If you are confused about the project context or what files exist:\n"
-            context += "1. Use read_file() to read OLLAMA.md for project context\n"
-            context += "2. Use list_files() to see what files exist in the project\n"
-            context += "3. Use bash('ls -la') to see all files including hidden ones\n"
-            context += "4. Actually implement what the task asks for - don't just say it's not possible!\n\n"
+            context += "# Your exploration code here\n"
+            context += "```\n\n"
+            context += "Step 2: Create the file\n"
+            context += "```python\n"
+            context += 'write_file("filename.py", """actual file contents""")\n'
+            context += "```\n\n"
+            
+            context += "WRONG APPROACH (DO NOT DO THIS):\n"
+            context += "- Do not write explanatory paragraphs\n"
+            context += "- Do not show code in text: 'Here is what the file would contain...'\n"
+            context += "- Do not put write_file() calls inside larger code blocks\n\n"
+            
+            # Check if we have sub-tasks to execute
+            if hasattr(self, 'current_subtask_manager') and self.current_subtask_manager:
+                next_subtask = self.current_subtask_manager.get_next_subtask()
+                if next_subtask:
+                    context += "\n[EXECUTING SUB-TASK]\n"
+                    context += f"Type: {next_subtask.type.value}\n"
+                    context += f"Description: {next_subtask.description}\n\n"
+                    context += "Execute ONLY this code:\n"
+                    context += "```python\n"
+                    context += next_subtask.code
+                    context += "\n```\n\n"
+                    context += "IMPORTANT: Execute ONLY the code above. Do not add explanations.\n"
+                    return context
             
             # Add specific guidance for information gathering tasks
             if "gather" in next_todo.content.lower() or "analyze" in next_todo.content.lower() or "document" in next_todo.content.lower():
-                context += "\n[CRITICAL: Information Gathering Requirements]\n"
-                context += "\nYou MUST actually explore the codebase, not just list files!\n"
-                context += "\n1. REQUIRED EXPLORATION STEPS:\n"
+                context += "\n[ANALYSIS TASK - EXECUTE THESE COMMANDS]\n\n"
+                context += "Execute each code block below one at a time:\n\n"
                 context += "```python\n"
-                context += "# Step 1: Read project context\n"
-                context += "ollama_content = read_file('OLLAMA.md')\n"
-                context += "print('=== OLLAMA.md Content ===')\n"
-                context += "print(ollama_content)\n"
+                context += "# Read project context\n"
+                context += "content = read_file('OLLAMA.md')\n"
+                context += "print(content[:1000])\n"
                 context += "```\n\n"
                 context += "```python\n"
-                context += "# Step 2: Find Python files related to ollama\n"
-                context += "python_files = bash('find . -name \"*.py\" | grep -E \"(ollama|agent|model)\" | head -20')\n"
-                context += "print('=== Relevant Python Files ===')\n"
-                context += "print(python_files)\n"
+                context += "# List project files\n"
+                context += "files = list_files()\n"
+                context += "print(files)\n"
                 context += "```\n\n"
                 context += "```python\n"
-                context += "# Step 3: Search for ollama API usage\n"
-                context += "api_usage = bash('grep -r \"ollama\" . --include=\"*.py\" | head -20')\n"
-                context += "print('=== Ollama API Usage ===')\n"
-                context += "print(api_usage)\n"
+                context += "# Find Python files\n"
+                context += "result = bash('find . -name "*.py" | head -20')\n"
+                context += "print(result)\n"
                 context += "```\n\n"
-                context += "```python\n"
-                context += "# Step 4: Check for existing model-related code\n"
-                context += "model_code = bash('grep -r \"model\" . --include=\"*.py\" | grep -i \"available\\|list\\|check\" | head -10')\n"
-                context += "print('=== Model-related Code ===')\n"
-                context += "print(model_code)\n"
-                context += "```\n\n"
-                context += "2. SUMMARIZE YOUR FINDINGS:\n"
-                context += "   - What Ollama API endpoints are used?\n"
-                context += "   - What model-related functionality exists?\n"
-                context += "   - Where should new backend integration go?\n\n"
+                context += "After executing, summarize what you found.\n"
             
             # Add specific guidance for file creation tasks
             elif any(word in next_todo.content.lower() for word in ['create', 'write', 'develop', 'implement', 'script', 'test', 'endpoint', 'backend', 'service']):
-                context += "\n[CRITICAL: File Creation Requirements]\n"
-                context += "\nYou MUST create actual files using write_file()! DO NOT just explain what you would do!\n\n"
+                context += "\n[FILE CREATION TASK]\n\n"
+                context += "You MUST create files by executing code blocks.\n"
+                context += "DO NOT explain or show what you would do.\n"
+                context += "Execute the appropriate code based on the task.\n\n"
                 
-                if 'test' in next_todo.content.lower():
-                    context += "Create a test file like this:\n"
-                    context += "```python\n"
-                    context += 'write_file("test_ollama_models.py", """\n'
-                    context += 'import unittest\n'
-                    context += 'from unittest.mock import patch, Mock\n'
-                    context += 'from ollama_models import check_available_models\n\n'
-                    context += 'class TestOllamaModels(unittest.TestCase):\n'
-                    context += '    @patch("requests.get")\n'
-                    context += '    def test_check_models_success(self, mock_get):\n'
-                    context += '        """Test successful model retrieval"""\n'
-                    context += '        mock_get.return_value.json.return_value = {\n'
-                    context += '            "models": [{"name": "llama2", "size": "7B"}]\n'
-                    context += '        }\n'
-                    context += '        result = check_available_models()\n'
-                    context += '        self.assertEqual(len(result), 1)\n'
-                    context += '\n'
-                    context += 'if __name__ == "__main__":\n'
-                    context += '    unittest.main()\n'
-                    context += '""")\n'
-                    context += "```\n\n"
-                elif 'endpoint' in next_todo.content.lower() or 'backend' in next_todo.content.lower() or 'service' in next_todo.content.lower():
-                    context += "Create a backend service file like this:\n"
-                    context += "```python\n"
-                    context += 'write_file("ollama_backend.py", """\n'
-                    context += 'from flask import Flask, jsonify\n'
-                    context += 'import requests\n'
-                    context += 'import json\n\n'
-                    context += 'app = Flask(__name__)\n\n'
-                    context += '@app.route("/api/models", methods=["GET"])\n'
-                    context += 'def get_available_models():\n'
-                    context += '    """Endpoint to get available Ollama models"""\n'
-                    context += '    try:\n'
-                    context += '        response = requests.get("http://localhost:11434/api/tags")\n'
-                    context += '        return jsonify(response.json())\n'
-                    context += '    except Exception as e:\n'
-                    context += '        return jsonify({"error": str(e)}), 500\n\n'
-                    context += 'if __name__ == "__main__":\n'
-                    context += '    app.run(debug=True, port=5000)\n'
-                    context += '""")\n'
-                    context += "```\n\n"
-                elif 'script' in next_todo.content.lower() or 'tool' in next_todo.content.lower():
-                    context += "Create a tool/script file like this:\n"
-                    context += "```python\n"
-                    context += 'write_file("ollama_models.py", """\n'
-                    context += 'import requests\n'
-                    context += 'import json\n'
-                    context += 'from typing import List, Dict\n\n'
-                    context += 'def check_available_models() -> List[Dict]:\n'
-                    context += '    """Check what models are available in Ollama"""\n'
-                    context += '    try:\n'
-                    context += '        response = requests.get("http://localhost:11434/api/tags")\n'
-                    context += '        data = response.json()\n'
-                    context += '        return data.get("models", [])\n'
-                    context += '    except Exception as e:\n'
-                    context += '        print(f"Error fetching models: {e}")\n'
-                    context += '        return []\n\n'
-                    context += 'if __name__ == "__main__":\n'
-                    context += '    models = check_available_models()\n'
-                    context += '    print(f"Found {len(models)} models:")\n'
-                    context += '    for model in models:\n'
-                    context += '        print(f"  - {model.get(\'name\')}")\n'
-                    context += '""")\n'
-                    context += "```\n\n"
-                
-                context += "REMEMBER: Use the exact write_file() syntax shown above! Create the actual file!\n"
+                # Provide simpler guidance without complex string escaping
+                context += "Example for creating a Python file:\n"
+                context += "```python\n"
+                context += "content = '''import requests\n\ndef my_function():\n    pass\n'''\n"
+                context += "write_file('my_file.py', content)\n"
+                context += "```\n\n"
+                context += "Execute similar code for your specific task.\n"
             
             # Add specific guidance for OLLAMA.md update tasks
             elif "ollama.md" in next_todo.content.lower() and ("update" in next_todo.content.lower() or "document" in next_todo.content.lower()):

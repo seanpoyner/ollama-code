@@ -776,6 +776,27 @@ class OllamaCodeAgent:
             if not cancelled_all and result and "Request cancelled" not in result:
                 in_progress_tasks = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
                 if in_progress_tasks:
+                    # Check if this is a sub-task execution
+                    if hasattr(self.thought_loop, 'current_subtask_manager') and self.thought_loop.current_subtask_manager:
+                        subtask_mgr = self.thought_loop.current_subtask_manager
+                        current_subtask = subtask_mgr.get_next_subtask()
+                        
+                        if current_subtask:
+                            # Mark sub-task complete and check for more
+                            subtask_mgr.mark_current_complete()
+                            console.print(f"\n✅ [dim]Sub-task completed: {current_subtask.description}[/dim]")
+                            
+                            # Check if there are more sub-tasks
+                            next_subtask = subtask_mgr.get_next_subtask()
+                            if next_subtask:
+                                # Continue with next sub-task
+                                console.print(f"\n🔄 [dim]Next sub-task: {next_subtask.description}[/dim]")
+                                continue  # Don't mark main task complete yet
+                            else:
+                                # All sub-tasks done
+                                console.print(f"\n✅ [green]All sub-tasks completed![/green]")
+                                self.thought_loop.current_subtask_manager = None
+                    
                     # Extract task summary from result
                     task_summary = self._extract_task_summary(result)
                     
