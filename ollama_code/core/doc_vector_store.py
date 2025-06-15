@@ -539,8 +539,4 @@ class DocVectorStore:
             raise
 
 
-# Fallback to SQLite implementation if ChromaDB not available
-if not CHROMADB_AVAILABLE:
-    logger.warning("ChromaDB not available. Vector store functionality will be limited.")
-    # You could import the original DocCache here as a fallback:
-    # from .doc_cache import DocCache as DocVectorStore
+# Note: ChromaDB availability is checked at runtime when DocVectorStore is instantiated
