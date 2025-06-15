@@ -14,7 +14,7 @@ def setup_logging():
     logger.setLevel(logging.INFO)
     
     # Only log to file, not console
-    file_handler = logging.FileHandler(log_dir / 'ollama-code.log')
+    file_handler = logging.FileHandler(log_dir / 'ollama-code.log', encoding='utf-8')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
     

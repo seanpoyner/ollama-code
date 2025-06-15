@@ -35,6 +35,29 @@ class SubTaskManager:
         subtasks = []
         task_lower = task_content.lower()
         
+        # Add directory navigation subtask for file creation tasks in specific projects
+        if "implement" in task_lower or "create" in task_lower or "frontend" in task_lower or "backend" in task_lower:
+            # Check if we need to work in a specific directory
+            if "full-web-app-dev" in task_content:
+                subtasks.append(
+                    SubTask(
+                        type=SubTaskType.EXECUTE,
+                        description="Navigate to project directory",
+                        code='''import os
+print(f"Current directory: {os.getcwd()}")
+if not os.getcwd().endswith('full-web-app-dev'):
+    if os.path.exists('full-web-app-dev'):
+        os.chdir('full-web-app-dev')
+        print(f"Changed to: {os.getcwd()}")
+    else:
+        print("Project directory 'full-web-app-dev' not found!")
+        # Create it if needed
+        os.makedirs('full-web-app-dev', exist_ok=True)
+        os.chdir('full-web-app-dev')
+        print(f"Created and changed to: {os.getcwd()}")'''
+                    )
+                )
+        
         # Analysis tasks
         if "analyze" in task_lower or "document" in task_lower:
             subtasks.extend([

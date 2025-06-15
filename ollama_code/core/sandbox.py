@@ -19,11 +19,12 @@ except ImportError:
 
 
 class CodeSandbox:
-    def __init__(self, write_confirmation_callback=None):
+    def __init__(self, write_confirmation_callback=None, doc_request_callback=None):
         self.docker_client = None
         # Disable Docker by default for better reliability
         self.use_docker = False
         self.write_confirmation_callback = write_confirmation_callback
+        self.doc_request_callback = doc_request_callback
         
         if DOCKER_AVAILABLE and self.use_docker:
             try:
@@ -113,11 +114,25 @@ import sys
 import json
 from pathlib import Path
 
+# Track initial directory and current working directory
+INITIAL_DIR = r'{str(Path.cwd())}'
+CURRENT_DIR = INITIAL_DIR
+
 # Change to user's working directory
-os.chdir(r'{str(Path.cwd())}')
+os.chdir(INITIAL_DIR)
 
 # Confirmation file for write operations
 CONFIRMATION_FILE = r'{confirmation_file}'
+
+# Helper to ensure we're in the right directory
+def ensure_project_dir(project_name=None):
+    global CURRENT_DIR
+    if project_name and os.path.exists(os.path.join(INITIAL_DIR, project_name)):
+        target = os.path.join(INITIAL_DIR, project_name)
+        os.chdir(target)
+        CURRENT_DIR = target
+        return target
+    return os.getcwd()
 
 # Inject environment detector
 exec({repr(env_detector_code)})
@@ -201,16 +216,68 @@ def bash(command):
     \"\"\"Execute a bash/shell command\"\"\"
     
     try:
-        # Use environment detector for proper shell execution
-        result = _env.execute_command(command, timeout=30)
+        # Detect if this is a Flask/server command that would block
+        is_blocking_command = any(pattern in command.lower() for pattern in [
+            'python app.py',
+            'python server.py',
+            'flask run',
+            'python -m flask',
+            'uvicorn',
+            'gunicorn',
+            'python backend.py',
+            'python api.py',
+            'python web.py',
+            'python main.py'
+        ])
         
-        if result['success']:
-            return result['output'] if result['output'] else "Command executed successfully (no output)"
+        if is_blocking_command and not any(flag in command for flag in ['&', 'nohup', '--daemon']):
+            # For blocking commands, run in background and capture initial output
+            print(f"Starting server in background mode: {{command}}")
+            
+            # Modify command to run in background
+            if _env.os_type == 'windows':
+                # Windows: use start command
+                bg_command = f'start /B {{command}}'
+            else:
+                # Unix-like: append & to run in background
+                bg_command = f'{{command}} > server.log 2>&1 & echo $!'
+            
+            result = _env.execute_command(bg_command, timeout=3)
+            
+            if result['success']:
+                output = "Server started in background. "
+                
+                # Try to read initial log output
+                try:
+                    import time
+                    time.sleep(1)  # Give server time to start
+                    log_result = _env.execute_command('head -20 server.log 2>/dev/null || echo "No log output yet"', timeout=2)
+                    if log_result['success'] and log_result['output']:
+                        output += f"\\nInitial server output:\\n{{log_result['output']}}"
+                except:
+                    pass
+                
+                output += "\\n\\nNote: Server is running in background. Use 'ps aux | grep python' to check process."
+                return output
+            else:
+                return f"Failed to start server: {{result['error']}}"
         else:
-            return f"Command failed: {{result['error']}}\\n{{result['output']}}"
+            # Normal command execution
+            result = _env.execute_command(command, timeout=30)
+            
+            if result['success']:
+                return result['output'] if result['output'] else "Command executed successfully (no output)"
+            else:
+                return f"Command failed: {{result['error']}}\\n{{result['output']}}"
         
     except Exception as e:
         return f"Failed to execute command: {{e}}"
+
+# Documentation tools (will be injected by agent if available)
+# These provide access to documentation search and knowledge base
+search_docs = None
+get_api_info = None
+remember_solution = None
 
 # User code starts here
 """
@@ -247,7 +314,7 @@ def bash(command):
                     line = line.rstrip()
                     
                     # Skip the line after confirmation markers
-                    if skip_next and (line.startswith("Writing to:") or line.startswith("Command:")):
+                    if skip_next and (line.startswith("Writing to:") or line.startswith("Command:") or line.startswith("Searching docs for:") or line.startswith("Getting API info for:") or line.startswith("Remembering solution:")):
                         skip_next = False
                         continue
                     
@@ -284,6 +351,40 @@ def bash(command):
                                     logger.error("Timeout waiting for confirmation response")
                         except Exception as e:
                             logger.error(f"Error handling confirmation: {e}")
+                    
+                    # Check for documentation request
+                    elif line == "###DOCUMENTATION_REQUEST###":
+                        skip_next = True
+                        logger.info("Documentation request detected")
+                        # Read the documentation request
+                        try:
+                            import time
+                            time.sleep(0.2)  # Give time for file to be written
+                            with open(confirmation_file, 'r', encoding='utf-8') as f:
+                                request = json.load(f)
+                            
+                            if request.get('action') in ['search_docs', 'get_api_info', 'remember_solution'] and self.doc_request_callback:
+                                logger.info(f"Processing documentation request: {request['action']}")
+                                # Put request in queue for main thread to handle
+                                confirmation_queue.put(('doc_request', request))
+                                
+                                # Wait for response from main thread
+                                response_received = False
+                                for _ in range(100):  # Wait up to 10 seconds
+                                    try:
+                                        with open(confirmation_file, 'r', encoding='utf-8') as f:
+                                            response_data = json.load(f)
+                                            if 'result' in response_data:
+                                                response_received = True
+                                                break
+                                    except:
+                                        pass
+                                    time.sleep(0.1)
+                                
+                                if not response_received:
+                                    logger.error("Timeout waiting for documentation response")
+                        except Exception as e:
+                            logger.error(f"Error handling documentation request: {e}")
                     
                     # Check for timeout marker
                     elif line == "###TIMEOUT_OCCURRED###":
@@ -327,6 +428,18 @@ def bash(command):
                         with open(confirmation_file, 'w', encoding='utf-8') as f:
                             json.dump(response, f)
                         logger.info(f"Confirmation response written: approved={approved}")
+                    
+                    elif action == 'doc_request' and self.doc_request_callback:
+                        # Handle documentation request in main thread
+                        result = self.doc_request_callback(request)
+                        
+                        # Write response
+                        response = {
+                            'result': result
+                        }
+                        with open(confirmation_file, 'w', encoding='utf-8') as f:
+                            json.dump(response, f)
+                        logger.info(f"Documentation response written for: {request.get('action')}")
                 except queue.Empty:
                     # No confirmation requests, continue monitoring
                     pass

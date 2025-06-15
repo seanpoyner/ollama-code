@@ -1,5 +1,6 @@
 """Thought loop processing with integrated todo management"""
 
+import os
 import re
 from typing import List, Dict, Optional, Tuple
 from rich.console import Console
@@ -16,7 +17,7 @@ console = Console()
 class ThoughtLoop:
     """Manages the AI's thought process and task decomposition"""
     
-    def __init__(self, todo_manager: TodoManager = None, model_name: str = None):
+    def __init__(self, todo_manager: TodoManager = None, model_name: str = None, doc_assistant=None):
         self.todo_manager = todo_manager or TodoManager()
         self.current_task_context = []
         self.thinking_steps = []
@@ -24,6 +25,7 @@ class ThoughtLoop:
         self.task_planner = AITaskPlanner(model_name) if model_name else None
         self.task_results = {}  # Store results from completed tasks
         self.current_subtask_manager = None  # Current sub-task manager
+        self.doc_assistant = doc_assistant  # Documentation assistant
     
     def process_request(self, request: str) -> Tuple[List[Dict], str]:
         """
@@ -214,8 +216,21 @@ class ThoughtLoop:
                         previous_results += "No specific results recorded.\n"
                 previous_results += "\nUSE THESE RESULTS! Build on what was discovered and created in previous tasks!\n"
             
+            # Get documentation context for this task
+            doc_context = ""
+            if hasattr(self, 'doc_assistant'):
+                try:
+                    # Search for relevant documentation
+                    doc_context = self.doc_assistant.get_documentation_context(next_todo.content)
+                    if doc_context:
+                        doc_context = "\n## Relevant Documentation\n" + doc_context + "\n"
+                except Exception as e:
+                    console.print(f"[dim]Could not fetch documentation: {e}[/dim]")
+            
             # Create focused context for this specific task
             context = f"Please complete the following task:\n\n{next_todo.content}\n\n"
+            if doc_context:
+                context += doc_context
             if previous_results:
                 context += previous_results + "\n"
             
@@ -281,6 +296,38 @@ class ThoughtLoop:
                 context += "You MUST create files by executing code blocks.\n"
                 context += "DO NOT explain or show what you would do.\n"
                 context += "Execute the appropriate code based on the task.\n\n"
+                
+                # Add working directory context
+                context += f"CURRENT WORKING DIRECTORY: {os.getcwd()}\n\n"
+                
+                # Add Ollama-specific context if relevant
+                if "ollama" in next_todo.content.lower():
+                    context += "OLLAMA API REFERENCE:\n"
+                    context += "- Base URL: http://localhost:11434\n"
+                    context += "- Chat endpoint: POST /api/chat with {model, messages, stream}\n"
+                    context += "- Generate endpoint: POST /api/generate with {model, prompt, stream}\n"
+                    context += "- Models endpoint: GET /api/tags\n"
+                    context += "- Use 'llama2' as default model name\n\n"
+                
+                # Add directory guidance if task mentions a specific project
+                if "full-web-app-dev" in next_todo.content:
+                    context += "IMPORTANT: File Creation Guidelines:\n"
+                    context += "1. Check your current directory with: print(os.getcwd())\n"
+                    context += "2. If not in 'full-web-app-dev', navigate there first\n"
+                    context += "3. Create subdirectories as needed\n\n"
+                    context += "Example workflow:\n"
+                    context += "```python\n"
+                    context += "import os\n"
+                    context += "print(f\"Current directory: {os.getcwd()}\")\n"
+                    context += "\n"
+                    context += "# If not in project directory, navigate there\n"
+                    context += "if not os.getcwd().endswith('full-web-app-dev'):\n"
+                    context += "    if os.path.exists('full-web-app-dev'):\n"
+                    context += "        os.chdir('full-web-app-dev')\n"
+                    context += "        print(f\"Changed to: {os.getcwd()}\")\n"
+                    context += "    else:\n"
+                    context += "        print(\"Project directory not found!\")\n"
+                    context += "```\n\n"
                 
                 # Provide simpler guidance without complex string escaping
                 context += "Example for creating a Python file:\n"

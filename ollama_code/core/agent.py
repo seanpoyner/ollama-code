@@ -13,6 +13,8 @@ from ..core.sandbox import CodeSandbox
 from ..core.file_ops import create_file, read_file, list_files
 from ..core.thought_loop import ThoughtLoop
 from ..core.todos import TodoManager, TodoStatus, TodoPriority
+from ..core.task_validator import TaskValidator, ValidationResult
+from ..core.doc_integration import DocumentationAssistant
 from ..integrations.mcp import FastMCPIntegration
 from ..utils.messages import get_message
 from ..utils.ui import detect_thinking_status, setup_esc_handler, display_code_execution, display_execution_result
@@ -30,15 +32,23 @@ class OllamaCodeAgent:
         self.ollama_md = ollama_md
         self.ollama_config = ollama_config
         self.todo_manager = todo_manager or TodoManager()
-        self.thought_loop = ThoughtLoop(self.todo_manager, model_name=model_name)
         self.auto_mode = False  # Auto-continue tasks
         self.auto_approve_writes = False  # Auto-approve file writes
         self.quick_analysis_mode = True  # Limit analysis task depth
         self.analysis_timeout = 30  # Seconds for analysis tasks
         self.system_prompt = self._build_system_prompt()
+        self.task_validator = TaskValidator()  # Initialize task validator
+        self.files_created_in_task = []  # Track files created during current task
+        self.doc_assistant = DocumentationAssistant()  # Initialize documentation assistant
+        self.thought_loop = ThoughtLoop(self.todo_manager, model_name=model_name, doc_assistant=self.doc_assistant)
         # Initialize sandbox with confirmation callbacks
-        self.sandbox = CodeSandbox(write_confirmation_callback=self._confirm_file_write)
+        self.sandbox = CodeSandbox(
+            write_confirmation_callback=self._confirm_file_write,
+            doc_request_callback=self._handle_doc_request
+        )
         self.sandbox.bash_confirmation_callback = self._confirm_bash_command
+        # Add documentation tools
+        self.doc_assistant.add_documentation_tools(self)
     
     def _build_system_prompt(self):
         # Try to load from prompts.yaml first
@@ -50,6 +60,14 @@ class OllamaCodeAgent:
             execution_rules = ''
         
         full_prompt = base_prompt + execution_rules
+        
+        # Add documentation tools info
+        full_prompt += "\n\n## Documentation Tools Available\n"
+        full_prompt += "You have access to the following documentation tools:\n"
+        full_prompt += "- search_docs(query, source_type=None): Search for documentation and get relevant context\n"
+        full_prompt += "- get_api_info(service, endpoint=None): Get API endpoint information\n"
+        full_prompt += "- remember_solution(title, description, code, language, tags): Remember successful solutions\n"
+        full_prompt += "\nUse these tools to get accurate information and prevent hallucination.\n"
         
         # Add OLLAMA.md content if available
         if self.ollama_md:
@@ -67,6 +85,9 @@ class OllamaCodeAgent:
     
     def _confirm_file_write(self, filename, content):
         """Confirm file write with user"""
+        # Track files created for validation
+        self.files_created_in_task.append(filename)
+        
         if self.auto_approve_writes:
             return True, None
         
@@ -188,7 +209,11 @@ class OllamaCodeAgent:
         """Tool for executing Python code"""
         display_code_execution(code)
         logger.info(f"Executing Python code: {code[:100]}...")
-        result = self.sandbox.execute_python(code)
+        
+        # Inject documentation tools into the code
+        injected_code = self._inject_documentation_tools(code)
+        
+        result = self.sandbox.execute_python(injected_code)
         
         # Only display result if there's output or error
         if result['output'] or result['error']:
@@ -298,6 +323,70 @@ class OllamaCodeAgent:
                 return False
             
             console.print("[red]Please enter: y/yes, n/no, or a/all[/red]")
+    
+    def _handle_doc_request(self, request):
+        """Handle documentation requests from sandboxed code"""
+        action = request.get('action')
+        
+        try:
+            if action == 'search_docs':
+                query = request.get('query', '')
+                source_type = request.get('source_type')
+                logger.info(f"Processing search_docs request: {query}")
+                result = self.doc_assistant.get_documentation_context(query, source_type)
+                return result
+            
+            elif action == 'get_api_info':
+                service = request.get('service', '')
+                endpoint = request.get('endpoint')
+                logger.info(f"Processing get_api_info request: {service}, {endpoint}")
+                # Use the knowledge base directly
+                endpoints = self.doc_assistant.knowledge_base.get_api_endpoints(service)
+                if endpoint:
+                    endpoints = [e for e in endpoints if endpoint in e['endpoint']]
+                
+                if not endpoints:
+                    return f"No API information found for {service}"
+                
+                result = []
+                for ep in endpoints:
+                    result.append(f"## {ep['method']} {ep['endpoint']}")
+                    if ep.get('parameters'):
+                        result.append("**Parameters:**")
+                        import json
+                        result.append(f"```json\n{json.dumps(ep['parameters'], indent=2)}\n```")
+                    if ep.get('examples'):
+                        result.append("**Examples:**")
+                        for ex in ep['examples']:
+                            result.append(f"```\n{ex}\n```")
+                
+                return "\n".join(result)
+            
+            elif action == 'remember_solution':
+                title = request.get('title', '')
+                description = request.get('description', '')
+                code = request.get('code', '')
+                language = request.get('language', 'python')
+                tags = request.get('tags', [])
+                
+                logger.info(f"Processing remember_solution request: {title}")
+                self.doc_assistant.knowledge_base.add_code_pattern(
+                    name=title,
+                    description=description,
+                    pattern=code,
+                    language=language,
+                    use_cases=tags,
+                    examples=[]
+                )
+                return f"Solution remembered: {title}"
+            
+            else:
+                logger.warning(f"Unknown documentation request action: {action}")
+                return f"Unknown documentation action: {action}"
+                
+        except Exception as e:
+            logger.error(f"Error handling documentation request: {e}")
+            return f"Error processing documentation request: {str(e)}"
 
     async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False, skip_task_breakdown=False, is_task_execution=False, max_tokens=None):
         """Main chat interface with tool execution"""
@@ -699,8 +788,15 @@ class OllamaCodeAgent:
     async def _execute_tasks_sequentially(self, enable_esc_cancel=True):
         """Execute tasks one by one in separate AI calls"""
         import asyncio
+        import os
         
         cancelled_all = False
+        
+        # Store initial working directory
+        initial_cwd = os.getcwd()
+        
+        # Track project directory if created
+        project_dir = None
         
         while self.thought_loop.should_continue_tasks() and not cancelled_all:
             # Get the next task context
@@ -708,9 +804,32 @@ class OllamaCodeAgent:
             if not next_task_context:
                 break
             
+            # Check if this task creates a project directory
+            if "create" in next_task_context.lower() and "project directory" in next_task_context.lower():
+                # Extract directory name from task
+                import re
+                # Look for quoted directory name
+                match = re.search(r'["\']([^"\'\/]+)["\']', next_task_context)
+                if match:
+                    potential_dir = match.group(1)
+                    # Common project directory patterns
+                    if "web" in potential_dir or "app" in potential_dir or "project" in potential_dir:
+                        project_dir = potential_dir
+                        logger.info(f"Detected project directory: {project_dir}")
+            
+            # If we have a project directory and we're creating files, ensure we're in it
+            if project_dir and any(word in next_task_context.lower() for word in ["implement", "create", "frontend", "backend", "file"]):
+                target_dir = os.path.join(initial_cwd, project_dir)
+                if os.path.exists(target_dir) and os.getcwd() != target_dir:
+                    os.chdir(target_dir)
+                    logger.info(f"Changed working directory to: {target_dir}")
+            
             # Clear conversation history to prevent AI from seeing previous tasks
             # Keep only the system prompt
             self.conversation = []
+            
+            # Reset files created tracker for this task
+            self.files_created_in_task = []
             
             # Add focused system message for this specific task
             focused_system_prompt = (
@@ -800,24 +919,57 @@ class OllamaCodeAgent:
                     # Extract task summary from result
                     task_summary = self._extract_task_summary(result)
                     
-                    # Validate task completion for certain task types
+                    # Validate task completion using TaskValidator
                     current_task = in_progress_tasks[0]
-                    if self._needs_validation(current_task.content):
-                        if not self._validate_task_completion(current_task.content, result):
-                            console.print("\n⚠️ [yellow]Task not properly completed - no files were created[/yellow]")
-                            task_summary = "Task attempted but no files were created"
+                    validation_result, validation_feedback = self.task_validator.validate_task_completion(
+                        current_task.content, 
+                        result, 
+                        self.files_created_in_task
+                    )
+                    
+                    # Handle validation results
+                    if validation_result == ValidationResult.NEEDS_RETRY:
+                        console.print(f"\n⚠️ [yellow]Task validation failed: {validation_feedback}[/yellow]")
+                        
+                        # Implement retry logic - max 3 attempts
+                        retry_count = getattr(current_task, 'retry_count', 0)
+                        if retry_count < 3:
+                            console.print(f"\n🔄 [cyan]Retrying task (attempt {retry_count + 2}/3)...[/cyan]")
                             
-                            # Add feedback to force file creation on retry
+                            # Generate retry context
+                            retry_context = self.task_validator.generate_retry_context(
+                                current_task.content,
+                                validation_feedback,
+                                retry_count + 1
+                            )
+                            
+                            # Update task retry count
+                            current_task.retry_count = retry_count + 1
+                            
+                            # Reset conversation and add retry context
+                            self.conversation = []
                             self.conversation.append({
                                 'role': 'system',
-                                'content': (
-                                    "CRITICAL ERROR: You did NOT create any files! "
-                                    "You MUST use write_file() to actually create files. "
-                                    "Do NOT just explain or show code - CREATE THE FILES!"
-                                )
+                                'content': retry_context
                             })
-                    
-                    self.thought_loop.mark_current_task_complete(task_summary)
+                            
+                            # Reset the task to pending so it will be retried
+                            self.todo_manager.update_todo(current_task.id, status=TodoStatus.PENDING.value)
+                            
+                            # Continue to retry the task
+                            continue
+                        else:
+                            console.print("\n❌ [red]Task failed after 3 attempts[/red]")
+                            task_summary = f"Task failed validation: {validation_feedback}"
+                            self.thought_loop.mark_current_task_complete(task_summary)
+                    elif validation_result == ValidationResult.FAILED:
+                        console.print(f"\n❌ [red]Task failed: {validation_feedback}[/red]")
+                        task_summary = f"Task failed: {validation_feedback}"
+                        self.thought_loop.mark_current_task_complete(task_summary)
+                    else:
+                        # Validation passed
+                        console.print("\n✅ [green]Task validation passed[/green]")
+                        self.thought_loop.mark_current_task_complete(task_summary)
             
             # Show progress
             console.print(f"\n{self.thought_loop.get_progress_summary()}")
@@ -925,26 +1077,144 @@ class OllamaCodeAgent:
         
         return "Task executed"
     
-    def _needs_validation(self, task_content: str) -> bool:
-        """Check if a task needs validation of completion"""
-        validation_keywords = [
-            'create', 'write', 'implement', 'develop', 'build',
-            'script', 'file', 'test', 'unit test', 'endpoint',
-            'function', 'tool', 'backend', 'integration'
-        ]
-        task_lower = task_content.lower()
-        return any(keyword in task_lower for keyword in validation_keywords)
+    def _inject_documentation_tools(self, code):
+        """Inject documentation tools into Python code before execution"""
+        # Create wrapper functions that call back to the agent's methods
+        doc_tools_code = '''
+# Documentation tools injected by agent
+def search_docs(query, source_type=None):
+    """Search documentation and get relevant context"""
+    # This will be replaced with actual implementation
+    return f"Documentation search for '{query}' (source_type={source_type})"
+
+def get_api_info(service, endpoint=None):
+    """Get API endpoint information"""
+    # This will be replaced with actual implementation
+    return f"API info for {service} endpoint {endpoint}"
+
+def remember_solution(title, description, code, language='python', tags=None):
+    """Remember a successful solution for future use"""
+    # This will be replaced with actual implementation
+    return f"Solution '{title}' remembered"
+
+# Override the placeholders in the sandbox
+import sys
+sys.modules[__name__].search_docs = search_docs
+sys.modules[__name__].get_api_info = get_api_info
+sys.modules[__name__].remember_solution = remember_solution
+
+'''
+        
+        # If we have a doc_assistant, create actual implementations
+        if hasattr(self, 'doc_assistant') and self.doc_assistant:
+            doc_tools_code = f'''
+# Documentation tools injected by agent
+import json
+
+# Create a temporary file for communication with the agent
+import tempfile
+doc_comm_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
+DOC_COMM_FILE = doc_comm_file.name
+doc_comm_file.close()
+
+def search_docs(query, source_type=None):
+    """Search documentation and get relevant context"""
+    request = {{
+        'action': 'search_docs',
+        'query': query,
+        'source_type': source_type
+    }}
     
-    def _validate_task_completion(self, task_content: str, result: str) -> bool:
-        """Validate that a task was actually completed"""
-        # Check if files were created when they should have been
-        if any(word in task_content.lower() for word in ['create', 'write', 'develop', 'implement']):
-            # Look for write_file calls
-            return 'write_file(' in result
+    with open(DOC_COMM_FILE, 'w', encoding='utf-8') as f:
+        json.dump(request, f)
+    
+    # Signal that we need documentation
+    print("###DOCUMENTATION_REQUEST###", flush=True)
+    print(f"Searching docs for: {{query}}", flush=True)
+    
+    # Wait for response
+    import time
+    for _ in range(100):  # Wait up to 10 seconds
+        try:
+            with open(DOC_COMM_FILE, 'r', encoding='utf-8') as f:
+                response = json.load(f)
+                if 'result' in response:
+                    return response['result']
+        except:
+            pass
+        time.sleep(0.1)
+    
+    return "Documentation search timed out"
+
+def get_api_info(service, endpoint=None):
+    """Get API endpoint information"""
+    request = {{
+        'action': 'get_api_info',
+        'service': service,
+        'endpoint': endpoint
+    }}
+    
+    with open(DOC_COMM_FILE, 'w', encoding='utf-8') as f:
+        json.dump(request, f)
+    
+    print("###DOCUMENTATION_REQUEST###", flush=True)
+    print(f"Getting API info for: {{service}}", flush=True)
+    
+    # Wait for response
+    import time
+    for _ in range(100):
+        try:
+            with open(DOC_COMM_FILE, 'r', encoding='utf-8') as f:
+                response = json.load(f)
+                if 'result' in response:
+                    return response['result']
+        except:
+            pass
+        time.sleep(0.1)
+    
+    return "API info request timed out"
+
+def remember_solution(title, description, code, language='python', tags=None):
+    """Remember a successful solution for future use"""
+    request = {{
+        'action': 'remember_solution',
+        'title': title,
+        'description': description,
+        'code': code,
+        'language': language,
+        'tags': tags or []
+    }}
+    
+    with open(DOC_COMM_FILE, 'w', encoding='utf-8') as f:
+        json.dump(request, f)
+    
+    print("###DOCUMENTATION_REQUEST###", flush=True)
+    print(f"Remembering solution: {{title}}", flush=True)
+    
+    # Wait for response
+    import time
+    for _ in range(100):
+        try:
+            with open(DOC_COMM_FILE, 'r', encoding='utf-8') as f:
+                response = json.load(f)
+                if 'result' in response:
+                    return response['result']
+        except:
+            pass
+        time.sleep(0.1)
+    
+    return "Remember solution request timed out"
+
+# Override the placeholders in the sandbox
+import sys
+sys.modules[__name__].search_docs = search_docs
+sys.modules[__name__].get_api_info = get_api_info
+sys.modules[__name__].remember_solution = remember_solution
+
+'''
         
-        # For test tasks, check if tests were actually written
-        if 'test' in task_content.lower():
-            return 'def test_' in result or 'write_file(' in result
-        
-        # Default to true for other tasks
-        return True
+        # Prepend the documentation tools to the user's code
+        return doc_tools_code + "\n\n" + code
+    
+    # Note: _needs_validation and _validate_task_completion methods removed
+    # Now using comprehensive TaskValidator class for all validation

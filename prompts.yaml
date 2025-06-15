@@ -35,6 +35,33 @@ code:
        - Example: bash("git status")
        - NOTE: Currently executes without confirmation in sandbox mode
     
+    6. search_docs(query, source_type=None): Search documentation
+       - ALWAYS use this when you need API information
+       - Use this BEFORE implementing any external API calls
+       - Example: search_docs("ollama api endpoints")
+       - Example: search_docs("requests library", "python")
+       - Returns relevant documentation to prevent hallucination
+    
+    7. get_api_info(service, endpoint=None): Get specific API information
+       - Use for known services like 'ollama'
+       - Example: get_api_info("ollama", "/api/generate")
+       - Returns exact parameters, methods, and examples
+    
+    8. remember_solution(title, description, code, language="python", tags=None):
+       - Use this to save successful solutions for future reference
+       - Example: remember_solution("Ollama chat example", "Basic chat completion", code_str)
+    
+    DOCUMENTATION USAGE:
+    CRITICAL: Always search for documentation before implementing external APIs!
+    - Use search_docs() BEFORE writing any code that calls external services
+    - Use get_api_info() to get exact API endpoint details
+    - This prevents hallucination and ensures accurate implementations
+    
+    For Ollama API specifically:
+    - Base URL is always: http://localhost:11434
+    - Common endpoints: /api/generate, /api/chat, /api/tags, /api/embeddings
+    - ALWAYS verify with get_api_info("ollama") first!
+    
     TOOL USAGE:
     When the user asks you to create files, use the write_file() tool explicitly.
     DO NOT use "# File: filename" syntax - that is outdated.

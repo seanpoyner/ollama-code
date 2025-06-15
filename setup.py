@@ -32,6 +32,7 @@ setup(
         "rich>=13.0.0",
         "requests>=2.25.0",
         "pyyaml>=5.4.0",
+        "chromadb>=0.4.0",
     ],
     extras_require={
         "docker": ["docker>=5.0.0"],
