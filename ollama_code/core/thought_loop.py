@@ -116,9 +116,12 @@ class ThoughtLoop:
         # This method is only called from the fallback path now
         # The main path uses the task planner directly in process_request
         
+        # Create a truncated version for display, but preserve full context
+        display_request = request if len(request) <= 100 else request[:97] + "..."
+        
         # Fallback to simple task generation
         tasks = [
-            {"name": f"Analyze requirements for: {request[:50]}...", "priority": TodoPriority.HIGH},
+            {"name": f"Analyze requirements for: {display_request}", "priority": TodoPriority.HIGH},
             {"name": "Design the implementation approach", "priority": TodoPriority.HIGH},
             {"name": "Implement the main functionality", "priority": TodoPriority.HIGH},
             {"name": "Test and validate the implementation", "priority": TodoPriority.MEDIUM},
@@ -203,15 +206,32 @@ class ThoughtLoop:
             
             # Add specific guidance for information gathering tasks
             if "gather" in next_todo.content.lower() or "analyze" in next_todo.content.lower():
-                context += "\n[Guidance for information gathering:]"
-                context += "\n- BE BRIEF AND FOCUSED - This is just information gathering"
-                context += "\n- Use read_file() to quickly check OLLAMA.md if it exists (just first 50 lines)"
-                context += "\n- Use list_files() to get a quick overview of the project structure"
-                context += "\n- Look for README, package.json, requirements.txt, or similar files"
-                context += "\n- DO NOT read every file - just get a general understanding"
-                context += "\n- Provide a BRIEF summary (3-5 key points)"
-                context += "\n- If information is unclear, note what you need to know"
-                context += "\n- This should take less than 30 seconds\n"
+                context += "\n[CRITICAL: Information Gathering Requirements]"
+                context += "\n\nIMPORTANT: You MUST thoroughly explore the codebase before making any assumptions!"
+                context += "\n\n1. READ FILES COMPLETELY:"
+                context += "\n   - Use read_file() to read the FULL content of files (not just 50 characters!)"
+                context += "\n   - ALWAYS read OLLAMA.md if it exists for project context"
+                context += "\n   - Check README.md, package.json, requirements.txt, setup.py, etc."
+                context += "\n   - Read configuration files (*.json, *.yaml, *.toml)"
+                context += "\n\n2. SEARCH FOR EXISTING CODE:"
+                context += "\n   - Use bash('find . -name "*.py" -o -name "*.js" -o -name "*.html"') to find all code files"
+                context += "\n   - Use bash('grep -r "backend" . --include="*.py" --include="*.js"') to search for specific features"
+                context += "\n   - Use bash('rg "API" --type-add "web:*.{html,css,js}" -t web -t py') for better searching"
+                context += "\n\n3. EXPLORE PROJECT STRUCTURE:"
+                context += "\n   - Use list_files() to see directory structure"
+                context += "\n   - Use bash('ls -la') to see all files including hidden ones"
+                context += "\n   - Use bash('tree -I "node_modules|__pycache__|.git" -L 3') if available"
+                context += "\n\n4. READ KEY FILES:"
+                context += "\n   - index.html, app.js, main.py, server.py, api.py"
+                context += "\n   - Any files mentioned in README or documentation"
+                context += "\n   - Configuration and setup files"
+                context += "\n\n5. NEVER ASSUME:"
+                context += "\n   - Don't claim features don't exist without checking"
+                context += "\n   - Don't say 'no backend' without searching for backend code"
+                context += "\n   - Base your analysis on actual file contents, not assumptions"
+                context += "\n\n6. TIME GUIDELINE:"
+                context += "\n   - Spend 30-60 seconds thoroughly exploring"
+                context += "\n   - Better to be thorough than to miss important details\n"
             
             # Add specific guidance for OLLAMA.md update tasks
             elif "ollama.md" in next_todo.content.lower() and ("update" in next_todo.content.lower() or "document" in next_todo.content.lower()):

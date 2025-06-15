@@ -47,6 +47,16 @@ Important guidelines:
 - Typical task count: 4-8 tasks
 - First task should analyze/understand requirements (keep it under 30 seconds)
 - Last task should usually be documentation/testing
+
+CRITICAL FOR ANALYSIS TASKS:
+- When a task involves analyzing, reviewing, or understanding code/files:
+  * The task MUST explicitly state to "read files completely"
+  * Include "thoroughly explore the codebase" in the task description
+  * Mention specific file reading tools (Read, Glob, Grep) in the task
+  * Example: "Thoroughly analyze the codebase structure by reading all relevant files completely using Read tool"
+- NEVER make assumptions about file contents - always read them fully
+- Analysis tasks should emphasize complete exploration over quick scanning
+- If reviewing code, the task should mention reading the entire file, not just parts
 """
 
         try:
@@ -168,14 +178,30 @@ Important guidelines:
         """Fallback task generation if AI fails"""
         logger.info("Using fallback task generation")
         
+        # Create a truncated version for display, but preserve full context
+        display_request = request if len(request) <= 100 else request[:97] + "..."
+        
+        # Check if this is an analysis/review request
+        analysis_keywords = ['analyze', 'review', 'understand', 'explore', 'examine', 'investigate']
+        is_analysis = any(keyword in request.lower() for keyword in analysis_keywords)
+        
         # Create basic tasks based on request keywords
-        tasks = [
-            {"name": f"Analyze requirements: {request[:50]}...", "priority": TodoPriority.HIGH},
-            {"name": "Design the implementation approach", "priority": TodoPriority.HIGH},
-            {"name": "Implement the main functionality", "priority": TodoPriority.HIGH},
-            {"name": "Test and validate the implementation", "priority": TodoPriority.MEDIUM},
-            {"name": "Document the solution", "priority": TodoPriority.LOW}
-        ]
+        if is_analysis:
+            tasks = [
+                {"name": f"Thoroughly analyze requirements and explore codebase by reading all relevant files completely: {display_request}", "priority": TodoPriority.HIGH},
+                {"name": "Design the implementation approach based on complete file analysis", "priority": TodoPriority.HIGH},
+                {"name": "Implement the main functionality", "priority": TodoPriority.HIGH},
+                {"name": "Test and validate the implementation", "priority": TodoPriority.MEDIUM},
+                {"name": "Document the solution", "priority": TodoPriority.LOW}
+            ]
+        else:
+            tasks = [
+                {"name": f"Analyze requirements: {display_request}", "priority": TodoPriority.HIGH},
+                {"name": "Design the implementation approach", "priority": TodoPriority.HIGH},
+                {"name": "Implement the main functionality", "priority": TodoPriority.HIGH},
+                {"name": "Test and validate the implementation", "priority": TodoPriority.MEDIUM},
+                {"name": "Document the solution", "priority": TodoPriority.LOW}
+            ]
         
         explanation = "I'll break this down into systematic steps to complete your request."
         

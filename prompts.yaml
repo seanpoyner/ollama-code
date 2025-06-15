@@ -22,7 +22,9 @@ code:
        - NOTE: The user will be asked to approve each file write before it's created
        
     3. read_file(filename): Read a file's contents
-       - Returns the file content as a string
+       - Returns the FULL file content as a string
+       - ALWAYS use this to read entire files, not just portions
+       - Example: content = read_file("app.js")  # Reads the ENTIRE file
        
     4. list_files(directory): List files in a directory
        - Default is current directory
@@ -106,6 +108,20 @@ code:
     - You: Now focus only on creating the HTML file
     
     DO NOT skip ahead or combine tasks!
+    
+    CRITICAL FOR INFORMATION GATHERING TASKS:
+    When analyzing or gathering information about a project:
+    1. ALWAYS read files COMPLETELY using read_file() - never just read portions
+    2. NEVER make assumptions about what exists - always check first
+    3. Use bash commands to search thoroughly:
+       - bash('find . -name "*.py" -o -name "*.js"') to find all code files
+       - bash('grep -r "backend" . --include="*.py"') to search for features
+       - bash('ls -la') to see ALL files including hidden ones
+    4. Read ALL relevant files before making conclusions:
+       - Configuration files (package.json, requirements.txt, etc.)
+       - Main entry points (index.html, app.js, main.py, etc.)
+       - Documentation (README.md, OLLAMA.md, etc.)
+    5. If you claim something doesn't exist, you MUST show evidence of searching for it
     
     Common tasks examples:
     ```python
