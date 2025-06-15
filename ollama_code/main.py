@@ -157,6 +157,11 @@ async def main(resume=False):
     console.print(get_message('interface.exit_hint') + "\n")
     
     
+    await interactive_loop(agent, conversation_history, todo_manager, prompts_data)
+
+
+async def interactive_loop(agent, conversation_history, todo_manager, prompts_data):
+    """Main interactive loop for the CLI"""
     while True:
         try:
             user_input = input(get_message('interface.user_prompt'))

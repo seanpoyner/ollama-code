@@ -33,15 +33,62 @@ pip install -e ".[docker,mcp]"
 
 ## Usage
 
+### Basic Usage
+
 ```bash
 # Start Ollama server
 ollama serve
 
-# Run Ollama Code
+# Run Ollama Code in interactive mode
 ollama-code
 
 # Resume previous conversation
 ollama-code --resume
+```
+
+### Command-Line Options
+
+```bash
+# Execute a single prompt
+ollama-code -p "Create a Python web scraper"
+
+# Initialize project with context
+ollama-code --init "FastAPI project for e-commerce"
+
+# Use a specific model
+ollama-code --model qwen2.5-coder:7b
+
+# Enable auto-mode and quick analysis
+ollama-code --auto --quick
+
+# Execute with auto-approval and verbose output
+ollama-code -p "Create a README file" --auto-approve --verbose
+
+# List available models
+ollama-code --list-models
+```
+
+### Full Options
+
+```
+-p, --prompt TEXT         Execute a single prompt and exit
+--init [CONTEXT]          Initialize project with OLLAMA.md
+--resume                  Resume the previous conversation
+-m, --model TEXT          Specify the Ollama model to use
+--auto                    Enable auto-continue mode for tasks
+--quick                   Enable quick analysis mode (30s limit)
+--no-quick                Disable quick analysis mode
+-v, --verbose             Enable verbose logging
+-q, --quiet               Minimize output
+--no-color                Disable colored output
+--auto-approve            Auto-approve all file writes and commands
+--force                   Force overwrite existing files
+--temperature T           Set model temperature (0.0-2.0)
+--max-tokens N            Maximum tokens for model response
+--timeout SECONDS         Timeout for model responses (default: 120s)
+--list-models             List available Ollama models
+--version                 Show version information
+--help                    Show help message
 ```
 
 ## Commands

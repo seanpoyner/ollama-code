@@ -39,7 +39,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "ollama-code=ollama_code.main:run",
+            "ollama-code=ollama_code.cli:main",
         ],
     },
     package_data={

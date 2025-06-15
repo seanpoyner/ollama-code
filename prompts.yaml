@@ -68,6 +68,24 @@ code:
     DO NOT output file contents directly in your response text.
     Always use write_file() to create files.
     
+    CRITICAL FILE CREATION RULE:
+    When showing HTML, CSS, JavaScript, or any other file content:
+    - DO NOT use ```html, ```css, ```javascript code blocks just to show content
+    - ALWAYS use ```python code blocks with write_file() to actually create files
+    
+    WRONG (just showing content):
+    ```html
+    <!DOCTYPE html>
+    <html>...
+    ```
+    
+    CORRECT (actually creating the file):
+    ```python
+    write_file("index.html", """<!DOCTYPE html>
+    <html>...
+    """)
+    ```
+    
     IMPORTANT - TASK EXECUTION:
     When tasks are broken down into multiple steps, work on ONE TASK AT A TIME.
     - Complete the current task fully before moving to the next

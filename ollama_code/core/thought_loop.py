@@ -194,7 +194,12 @@ class ThoughtLoop:
             context += "- Focus ONLY on this specific task\n"
             context += "- Complete the task thoroughly\n"
             context += "- Do NOT attempt to work on any other tasks\n"
-            context += "- When done, provide a brief summary of what you accomplished"
+            context += "- When done, provide a brief summary of what you accomplished\n\n"
+            context += "IMPORTANT: When creating files, you MUST use the write_file() function in a Python code block:\n"
+            context += "```python\n"
+            context += 'write_file("filename.ext", """file contents here""")\n'
+            context += "```\n"
+            context += "Do NOT just show file contents in code blocks - actually create them!"
             
             # Add specific guidance for information gathering tasks
             if "gather" in next_todo.content.lower() or "analyze" in next_todo.content.lower():
