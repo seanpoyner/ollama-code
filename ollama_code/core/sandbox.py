@@ -97,6 +97,11 @@ class CodeSandbox:
                 confirmation_file = f.name
             
             # Inject file operations into the code context
+            # Import environment detector code
+            env_detector_path = Path(__file__).parent.parent / 'utils' / 'environment.py'
+            with open(env_detector_path, 'r', encoding='utf-8') as f:
+                env_detector_code = f.read()
+            
             setup_code = f"""
 import os
 import sys
@@ -108,6 +113,12 @@ os.chdir(r'{str(Path.cwd())}')
 
 # Confirmation file for write operations
 CONFIRMATION_FILE = r'{confirmation_file}'
+
+# Inject environment detector
+exec({repr(env_detector_code)})
+
+# Get environment detector instance
+_env = get_environment_detector()
 
 def write_file(filename, content):
     \"\"\"Write content to a file\"\"\"
@@ -181,27 +192,14 @@ def bash(command):
     \"\"\"Execute a bash/shell command\"\"\"
     
     try:
-        import subprocess
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd=os.getcwd()
-        )
+        # Use environment detector for proper shell execution
+        result = _env.execute_command(command, timeout=30)
         
-        output = result.stdout
-        if result.stderr:
-            output += f"\\n[stderr]\\n{{result.stderr}}"
+        if result['success']:
+            return result['output'] if result['output'] else "Command executed successfully (no output)"
+        else:
+            return f"Command failed: {{result['error']}}\\n{{result['output']}}"
         
-        if result.returncode != 0:
-            return f"Command failed with exit code {{result.returncode}}:\\n{{output}}"
-        
-        return output if output else "Command executed successfully (no output)"
-        
-    except subprocess.TimeoutExpired:
-        return "Command timed out after 30 seconds"
     except Exception as e:
         return f"Failed to execute command: {{e}}"
 

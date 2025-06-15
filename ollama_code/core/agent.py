@@ -477,9 +477,13 @@ class OllamaCodeAgent:
                           '.r', '.m', '.mm', '.pl', '.sh', '.bash', '.ps1', '.yaml', '.yml',
                           '.json', '.xml', '.html', '.css', '.scss', '.sass', '.vue', '.svelte'}
         
-        # Find all code files
+        # Add documentation and content file extensions
+        doc_extensions = {'.md', '.txt', '.rst', '.adoc', '.tex', '.docx', '.doc', 
+                         '.pdf', '.rtf', '.odt'}
+        
+        # Find all code and documentation files
         all_files = []
-        for ext in code_extensions:
+        for ext in code_extensions.union(doc_extensions):
             all_files.extend(Path.cwd().rglob(f'*{ext}'))
         
         # Exclude common directories
@@ -487,20 +491,28 @@ class OllamaCodeAgent:
                         'target', 'out', '.next', '.nuxt', 'coverage', '.pytest_cache',
                         'venv', '.venv', 'env', '.env', '.ollama-code'}
         
-        code_files = [f for f in all_files 
-                     if not any(excluded in f.parts for excluded in excluded_dirs)]
+        # Separate code files and doc files
+        filtered_files = [f for f in all_files 
+                         if not any(excluded in f.parts for excluded in excluded_dirs)]
         
-        if code_files:
-            console.print(get_message('init.analyzing_files', count=len(code_files)))
+        code_files = [f for f in filtered_files if f.suffix in code_extensions]
+        doc_files = [f for f in filtered_files if f.suffix in doc_extensions]
+        
+        total_files = len(code_files) + len(doc_files)
+        if total_files > 0:
+            console.print(get_message('init.analyzing_files', count=total_files))
+            if doc_files:
+                console.print(f"📄 [dim]Found {len(doc_files)} documentation files[/dim]")
         elif not user_context:
             # Only return if no files AND no user context
             console.print(get_message('init.no_files'))
             return
         
         # Prepare analysis prompt
-        file_list = "\n".join([f"- {f.relative_to(Path.cwd())}" for f in code_files[:50]])  # Limit to 50 files
-        if len(code_files) > 50:
-            file_list += f"\n... and {len(code_files) - 50} more files"
+        all_project_files = code_files + doc_files
+        file_list = "\n".join([f"- {f.relative_to(Path.cwd())}" for f in all_project_files[:50]])  # Limit to 50 files
+        if len(all_project_files) > 50:
+            file_list += f"\n... and {len(all_project_files) - 50} more files"
         
         # Read README if exists
         readme_content = ""
@@ -521,14 +533,65 @@ class OllamaCodeAgent:
                 with open(pkg_path, 'r', encoding='utf-8') as f:
                     package_info += f"\n\n{pkg_file}:\n{f.read()[:500]}"
         
+        # Read key documentation files (besides README)
+        doc_content = ""
+        important_docs = ['CONTRIBUTING.md', 'ARCHITECTURE.md', 'API.md', 'DESIGN.md', 
+                         'CHANGELOG.md', 'TODO.md', 'NOTES.md']
+        for doc_name in important_docs:
+            doc_path = Path.cwd() / doc_name
+            if doc_path.exists():
+                with open(doc_path, 'r', encoding='utf-8') as f:
+                    doc_content += f"\n\n{doc_name}:\n{f.read()[:1000]}"
+        
+        # Read a sample of other documentation files
+        other_docs_sample = ""
+        other_doc_files = [f for f in doc_files if f.name not in important_docs + ['README.md', 'readme.md']]
+        for doc_file in other_doc_files[:5]:  # Sample up to 5 other doc files
+            try:
+                with open(doc_file, 'r', encoding='utf-8') as f:
+                    content_preview = f.read()[:500]
+                    other_docs_sample += f"\n\n{doc_file.relative_to(Path.cwd())}:\n{content_preview}\n..."
+            except Exception as e:
+                logger.warning(f"Could not read {doc_file}: {e}")
+        
+        # Read key source files (entry points, main files, etc.)
+        key_source_content = ""
+        key_file_patterns = ['main.py', 'app.py', 'index.js', 'index.ts', 'main.js', 'main.ts',
+                           'server.py', 'server.js', '__init__.py', 'setup.py', 'cli.py',
+                           'api.py', 'routes.py', 'App.js', 'App.tsx', 'index.html']
+        
+        found_key_files = []
+        for pattern in key_file_patterns:
+            for f in code_files:
+                if f.name == pattern and f not in found_key_files:
+                    found_key_files.append(f)
+                    if len(found_key_files) >= 5:  # Limit to 5 key files
+                        break
+            if len(found_key_files) >= 5:
+                break
+        
+        for key_file in found_key_files:
+            try:
+                with open(key_file, 'r', encoding='utf-8') as f:
+                    content = f.read()[:1000]  # First 1000 chars
+                    key_source_content += f"\n\n{key_file.relative_to(Path.cwd())}:\n{content}\n..."
+            except Exception as e:
+                logger.warning(f"Could not read {key_file}: {e}")
+        
         console.print(get_message('init.generating'))
         
         # Show what we're sending to the AI
         console.print(f"📊 [dim]Found {len(code_files) if code_files else 0} code files to analyze[/dim]")
+        if doc_files:
+            console.print(f"📚 [dim]Found {len(doc_files)} documentation files to analyze[/dim]")
         if readme_content:
             console.print(f"📖 [dim]Found README file[/dim]")
         if package_info:
             console.print(f"📦 [dim]Found package configuration files[/dim]")
+        if doc_content:
+            console.print(f"📝 [dim]Found additional documentation files[/dim]")
+        if key_source_content:
+            console.print(f"🔍 [dim]Reading {len(found_key_files)} key source files[/dim]")
         if user_context:
             console.print(f"💡 [dim]Using context: {user_context[:60]}{'...' if len(user_context) > 60 else ''}[/dim]")
         
@@ -554,6 +617,8 @@ class OllamaCodeAgent:
                 user_context_section = f"User-provided context about this project: {user_context}" if user_context else ""
                 readme_section = f"README content:\n{readme_content}" if readme_content else "No README found"
                 package_section = f"Package files:{package_info}" if package_info else "No package files found"
+                doc_section = f"Documentation files:{doc_content}{other_docs_sample}" if (doc_content or other_docs_sample) else "No additional documentation found"
+                source_section = f"Key source files:{key_source_content}" if key_source_content else "No key source files sampled"
                 user_context_reminder = f"Make sure to incorporate this context: '{user_context}'" if user_context else ""
                 
                 analysis_prompt = templates['init_project_with_files'].format(
@@ -561,6 +626,8 @@ class OllamaCodeAgent:
                     file_list=file_list,
                     readme_section=readme_section,
                     package_section=package_section,
+                    doc_section=doc_section,
+                    source_section=source_section,
                     user_context_reminder=user_context_reminder
                 )
             elif not code_files and 'init_project_empty' in templates:

@@ -61,7 +61,12 @@ class TodoItem:
 
 class TodoManager:
     def __init__(self, todos_file: Path = None):
-        self.todos_file = todos_file or Path.cwd() / ".ollama-todos.json"
+        # Create .ollama-code directory if it doesn't exist
+        ollama_code_dir = Path.cwd() / ".ollama-code"
+        ollama_code_dir.mkdir(exist_ok=True)
+        
+        # Use .ollama-code directory for todos file
+        self.todos_file = todos_file or ollama_code_dir / "todos.json"
         self.todos: List[TodoItem] = []
         self.load_todos()
     

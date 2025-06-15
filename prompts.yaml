@@ -242,3 +242,47 @@ models:
     top_p: 0.8
     top_k: 20
     repeat_penalty: 1.2
+
+# Templates for init command
+templates:
+  init_project_with_files: |
+    {user_context_section}
+    
+    I need you to analyze this codebase and create an OLLAMA.md file that will help guide AI assistants working with this project.
+    
+    Files in the project:
+    {file_list}
+    
+    {readme_section}
+    
+    {package_section}
+    
+    {doc_section}
+    
+    {source_section}
+    
+    Please create a comprehensive OLLAMA.md file that includes:
+    1. Project overview and purpose
+    2. Key architectural decisions and patterns
+    3. Important files and their purposes
+    4. Development setup instructions
+    5. Common tasks and workflows
+    6. Testing approach
+    7. Any special considerations or gotchas
+    
+    {user_context_reminder}
+    
+    The OLLAMA.md should be thorough but concise, focusing on information that would be most helpful for an AI assistant to understand and work with this codebase effectively.
+  
+  init_project_empty: |
+    I need you to create an OLLAMA.md file for a new project based on this context: {user_context}
+    
+    Since this is a new/empty project, please create an OLLAMA.md that includes:
+    1. Project purpose and goals (based on the provided context)
+    2. Suggested project structure
+    3. Recommended technology stack
+    4. Initial setup steps
+    5. Development guidelines
+    6. Placeholder sections for future documentation
+    
+    Make the OLLAMA.md helpful for guiding future development of this project.

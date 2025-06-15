@@ -26,6 +26,18 @@ async def main(resume=False):
         style="bold blue"
     ))
     
+    # Initialize environment detection
+    from .utils.environment import get_environment_detector
+    env_detector = get_environment_detector()
+    
+    # Create .ollama-code directory if it doesn't exist
+    ollama_code_dir = Path.cwd() / '.ollama-code'
+    ollama_code_dir.mkdir(exist_ok=True)
+    
+    # Save environment configuration
+    env_detector.save_environment_config(ollama_code_dir)
+    console.print(f"🌍 [green]Detected environment: {env_detector.os_type} with {env_detector.shell} shell[/green]")
+    
     # Load prompts
     prompts_data = load_prompts()
     
@@ -182,7 +194,7 @@ async def main(resume=False):
                 if progress:
                     console.print(f"\n{progress}")
                 continue
-            elif False and user_input.lower().startswith('/todo'):
+            elif user_input.lower().startswith('/todo'):
                 # Parse todo command
                 cmd_info = todo_manager.parse_todo_command(user_input)
                 
