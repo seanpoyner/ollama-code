@@ -1,9 +1,28 @@
 """Main entry point for Ollama Code CLI"""
 
+import sys
+from rich.console import Console
+
+# Early dependency check before importing other modules
+console = Console()
+
+# Check and install dependencies before importing them
+from .utils.dependency_manager import DependencyManager
+
+# Ensure core dependencies are installed
+success, missing = DependencyManager.ensure_dependencies(auto_install=True)
+if not success:
+    console.print("[red]Failed to install required dependencies:[/red]")
+    for pkg in missing:
+        console.print(f"  - {pkg}")
+    console.print("\n[yellow]Please install manually:[/yellow]")
+    console.print(f"  pip install {' '.join(missing)}")
+    sys.exit(1)
+
+# Now safe to import everything else
 import asyncio
 import ollama
 from pathlib import Path
-from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 from rich.table import Table
@@ -16,7 +35,6 @@ from .utils.logging import setup_logging
 from .utils.messages import get_message
 from .utils.config import load_prompts, load_ollama_md, load_ollama_code_config
 
-console = Console()
 logger = setup_logging()
 
 
@@ -25,6 +43,27 @@ async def main(resume=False):
         Text(get_message('app.title'), justify="center"),
         style="bold blue"
     ))
+    
+    # Check optional features on first run
+    from .utils.user_config import UserConfig
+    user_config = UserConfig()
+    
+    features = DependencyManager.check_optional_features()
+    if not features['vector_search'] and not user_config.has_asked_about_chromadb():
+        console.print("\n[yellow]📦 ChromaDB not found (provides better documentation search)[/yellow]")
+        choice = Prompt.ask("Install ChromaDB for semantic search?", choices=["y", "n", "never"], default="y")
+        
+        if choice == "y":
+            console.print("[dim]Installing ChromaDB...[/dim]")
+            if DependencyManager.install_optional_package('chromadb'):
+                console.print("[green]✓ ChromaDB installed successfully![/green]")
+                user_config.set('chromadb_preference', 'yes')
+            else:
+                console.print("[yellow]⚠ ChromaDB installation failed. Using SQLite search.[/yellow]")
+        elif choice == "never":
+            user_config.set('chromadb_preference', 'no')
+        
+        user_config.mark_chromadb_asked()
     
     # Initialize environment detection
     from .utils.environment import get_environment_detector

@@ -87,9 +87,29 @@ class DocVectorStore:
             ollama_base_url: Base URL for Ollama API
         """
         if not CHROMADB_AVAILABLE:
-            raise ImportError(
-                "ChromaDB is not installed. Please install it with: pip install chromadb"
-            )
+            # Try to install ChromaDB automatically
+            from ..utils.dependency_manager import DependencyManager
+            
+            logger.info("ChromaDB not found. Attempting to install...")
+            if DependencyManager.install_optional_package('chromadb'):
+                # Try importing again
+                try:
+                    import chromadb as _chromadb
+                    from chromadb.utils import embedding_functions as _ef
+                    globals()['chromadb'] = _chromadb
+                    globals()['embedding_functions'] = _ef
+                    globals()['CHROMADB_AVAILABLE'] = True
+                    logger.info("ChromaDB installed successfully!")
+                except ImportError:
+                    raise ImportError(
+                        "ChromaDB was installed but cannot be imported. "
+                        "Please restart the application."
+                    )
+            else:
+                raise ImportError(
+                    "Failed to install ChromaDB automatically. "
+                    "Please install it manually with: pip install chromadb"
+                )
         
         if cache_dir is None:
             cache_dir = Path.home() / '.ollama' / 'doc_vectors'
