@@ -11,9 +11,13 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# Import vector store - ChromaDB is required
-from .doc_vector_store import DocVectorStore as DocCache, DocEntry
-logger.info("Using vector-based documentation search (ChromaDB)")
+# Try to import vector store first, fall back to SQLite cache if not available
+try:
+    from .doc_vector_store import DocVectorStore as DocCache, DocEntry
+    logger.info("Using vector-based documentation search (ChromaDB)")
+except ImportError:
+    from .doc_cache import DocCache, DocEntry
+    logger.info("Using SQLite FTS5 for documentation search (install chromadb for better search)")
 
 from .web_search import WebSearcher
 from .knowledge_base import KnowledgeBase, TaskContext

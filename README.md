@@ -19,42 +19,56 @@ A powerful coding assistant powered by Ollama models with code execution capabil
 
 ## Installation
 
-### Windows Installation
-
-```powershell
-# Clone the repository
-git clone https://github.com/yourusername/ollama-code.git
-cd ollama-code
-
-# Run the Windows installer (PowerShell)
-.\install_windows.ps1
-
-# Or use the batch file
-install_windows.bat
-
-# Or install manually
-pip install ollama rich requests pyyaml chromadb
-```
-
-### Linux/macOS Installation
+### Quick Install (Recommended)
 
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/ollama-code.git
 cd ollama-code
 
-# Install in development mode
+# Basic installation (works out of the box)
 pip install -e .
 
-# Or install with optional dependencies
-pip install -e ".[docker,mcp]"
+# With all optional features (recommended for best experience)
+pip install -e ".[all]"
+```
+
+### Installation Options
+
+| Command | Features | Use Case |
+|---------|----------|----------|
+| `pip install -e .` | Core features with SQLite search | Basic usage, minimal dependencies |
+| `pip install -e ".[chromadb]"` | Core + Vector search | Better documentation search |
+| `pip install -e ".[docker]"` | Core + Docker execution | Sandboxed code execution |
+| `pip install -e ".[mcp]"` | Core + MCP tools | Extended tool support |
+| `pip install -e ".[all]"` | Everything | Full feature set (recommended) |
+
+### Virtual Environment (Recommended)
+
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate it
+# Windows:
+venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+
+# Install with all features
+pip install -e ".[all]"
 ```
 
 ### Requirements
 
-- Python 3.8+
-- Ollama running locally
-- ChromaDB for vector-based documentation search
+- Python 3.8+ (3.11 recommended)
+- Ollama running locally (`ollama serve`)
+
+### Optional Components
+
+- **ChromaDB**: Provides semantic search for documentation (automatically falls back to SQLite if not installed)
+- **Docker**: Enables sandboxed code execution
+- **MCP**: Adds support for Model Context Protocol tools
 
 ## Usage
 

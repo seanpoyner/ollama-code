@@ -19,14 +19,10 @@ try:
     import chromadb
     from chromadb.utils import embedding_functions
     CHROMADB_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     CHROMADB_AVAILABLE = False
     chromadb = None
     embedding_functions = None
-    import sys
-    print(f"Warning: Failed to import ChromaDB: {e}", file=sys.stderr)
-    print(f"Python: {sys.executable}", file=sys.stderr)
-    print(f"Path: {sys.path}", file=sys.stderr)
 
 logger = logging.getLogger(__name__)
 
