@@ -139,11 +139,13 @@ def write_file(filename, content):
         
         # Wait for confirmation result
         import time
+        timeout_occurred = True
         for _ in range(300):  # Wait up to 30 seconds
             try:
                 with open(CONFIRMATION_FILE, 'r', encoding='utf-8') as f:
                     result = json.load(f)
                     if 'approved' in result:
+                        timeout_occurred = False
                         if result['approved']:
                             # Actually write the file
                             file_path = Path(filename)
@@ -162,8 +164,10 @@ def write_file(filename, content):
                 pass
             time.sleep(0.1)
         
-        print("Timeout waiting for file write confirmation")
-        return "Timeout waiting for confirmation"
+        if timeout_occurred:
+            print("###TIMEOUT_OCCURRED###")
+            print("ERROR: Timeout waiting for file write confirmation")
+            return "Timeout waiting for confirmation"
     except Exception as e:
         print(f"Failed to create file: {{e}}")
         return f"Failed to create file: {{e}}"
@@ -272,10 +276,16 @@ def bash(command):
                         except Exception as e:
                             logger.error(f"Error handling confirmation: {e}")
                     
+                    # Check for timeout marker
+                    elif line == "###TIMEOUT_OCCURRED###":
+                        skip_next = True
+                        logger.warning("File write confirmation timeout detected")
                     # Removed bash confirmation handling - now handled directly in bash()
                     else:
-                        # Only add to output if not a confirmation marker
-                        output_lines.append(line)
+                        # Only add to output if not a confirmation marker or timeout
+                        if not skip_next or not line.startswith("ERROR: Timeout"):
+                            output_lines.append(line)
+                        skip_next = False
             
             def read_stderr():
                 for line in process.stderr:

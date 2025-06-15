@@ -236,6 +236,11 @@ class TodoManager:
         else:
             console.print("✨ [green]All todos completed![/green]")
     
+    def clear(self):
+        """Clear all todos"""
+        self.todos = []
+        self.save_todos()
+    
     def parse_todo_command(self, command: str) -> Dict:
         """Parse todo commands like: /todo add high Fix the bug"""
         parts = command.split(maxsplit=3)

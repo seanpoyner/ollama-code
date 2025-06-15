@@ -317,7 +317,7 @@ class OllamaCodeAgent:
             
             # Execute tasks in separate calls
             await self._execute_tasks_sequentially(enable_esc_cancel)
-            return "Tasks completed"
+            return "Task execution completed. Control returned to user."
         
         # Add hint for file creation requests
         if any(keyword in user_input.lower() for keyword in ['create', 'write', 'generate']) and \
@@ -726,7 +726,7 @@ class OllamaCodeAgent:
             
             try:
                 # Execute this single task with timeout
-                await asyncio.wait_for(
+                result = await asyncio.wait_for(
                     self.chat(
                         next_task_context, 
                         enable_esc_cancel=enable_esc_cancel,
@@ -737,6 +737,13 @@ class OllamaCodeAgent:
                     ),
                     timeout=timeout_seconds
                 )
+                
+                # Check if task was aborted due to file write timeout
+                if "Timeout waiting for confirmation" in result:
+                    console.print("\n❌ [red]Task aborted: User did not respond to file write confirmation[/red]")
+                    console.print("[yellow]Stopping task execution. You can continue with /tasks command.[/yellow]")
+                    break
+                    
             except asyncio.TimeoutError:
                 console.print(f"\n⏱️ [yellow]Task timed out after {timeout_seconds} seconds[/yellow]")
                 console.print("[dim]Moving to next task...[/dim]")
@@ -755,6 +762,25 @@ class OllamaCodeAgent:
                 console.print("\n📊 [cyan]Task Progress:[/cyan]")
                 self.todo_manager.display_todos()
                 console.print(f"\n🔄 [cyan]Moving to next task...[/cyan]")
+        
+        # Show completion message when all tasks are done
+        completed_tasks = self.todo_manager.get_todos_by_status(TodoStatus.COMPLETED)
+        total_tasks = len(self.todo_manager.todos)
+        
+        if not self.thought_loop.should_continue_tasks() and completed_tasks:
+            console.print("\n" + "=" * 50)
+            console.print("\n🎉 [bold green]All tasks completed![/bold green]")
+            console.print(f"\n✅ Completed {len(completed_tasks)} out of {total_tasks} tasks")
+            console.print("\n📝 Task Summary:")
+            for task in completed_tasks:
+                console.print(f"   ✓ {task.content}")
+            
+            # Clear todos after completion
+            self.todo_manager.clear()
+            console.print("\n🧹 [dim]Todo list cleared[/dim]")
+            
+            console.print("\n💬 [cyan]Ready for your next command![/cyan]")
+            console.print("=" * 50 + "\n")
     
     def _is_analysis_task(self, input_text: str) -> bool:
         """Check if the current task is an analysis/information gathering task"""

@@ -1,0 +1,3 @@
+- the esc feature only exits the agents current task and doesn't break the agent off for user input.
+- implement mcp servers
+- implement github integrations
