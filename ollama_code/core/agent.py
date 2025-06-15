@@ -368,11 +368,12 @@ class OllamaCodeAgent:
                         'temperature': 0.3  # Lower temperature for more focused responses
                     }
                 elif is_task_execution and self._is_analysis_task(user_input):
-                    # For analysis tasks, use shorter responses
+                    # For analysis tasks, use shorter responses to prevent truncation
                     chat_options['options'] = {
-                        'num_predict': 800 if self.quick_analysis_mode else 1500,  # Shorter for quick mode
+                        'num_predict': 500 if self.quick_analysis_mode else 800,  # Much shorter to avoid truncation
                         'temperature': 0.3,
-                        'top_p': 0.8  # More focused responses
+                        'top_p': 0.8,  # More focused responses
+                        'stop': ['```\n\n```', '\n\n##', '\n\nStep']  # Stop at natural breaks
                     }
                 
                 stream = ollama.chat(**chat_options)
