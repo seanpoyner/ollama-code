@@ -30,7 +30,7 @@ class OllamaCodeAgent:
         self.ollama_md = ollama_md
         self.ollama_config = ollama_config
         self.todo_manager = todo_manager or TodoManager()
-        self.thought_loop = ThoughtLoop(self.todo_manager)
+        self.thought_loop = ThoughtLoop(self.todo_manager, model_name=model_name)
         self.auto_mode = False  # Auto-continue tasks
         self.auto_approve_writes = False  # Auto-approve file writes
         self.quick_analysis_mode = True  # Limit analysis task depth

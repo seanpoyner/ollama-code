@@ -7,6 +7,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from .todos import TodoManager, TodoStatus, TodoPriority
+from .ai_task_planner import AITaskPlanner
 
 console = Console()
 
@@ -14,10 +15,12 @@ console = Console()
 class ThoughtLoop:
     """Manages the AI's thought process and task decomposition"""
     
-    def __init__(self, todo_manager: TodoManager = None):
+    def __init__(self, todo_manager: TodoManager = None, model_name: str = None):
         self.todo_manager = todo_manager or TodoManager()
         self.current_task_context = []
         self.thinking_steps = []
+        self.model_name = model_name
+        self.task_planner = AITaskPlanner(model_name) if model_name else None
     
     def process_request(self, request: str) -> Tuple[List[Dict], str]:
         """
@@ -26,6 +29,16 @@ class ThoughtLoop:
         """
         # Analyze if this is a complex request that needs task breakdown
         if self._is_complex_request(request):
+            if self.task_planner:
+                # Get tasks and explanation from AI
+                console.print("[dim]🤔 Analyzing request and planning tasks...[/dim]")
+                tasks, explanation = self.task_planner.plan_tasks(request)
+                if tasks and len(tasks) > 0:
+                    self._add_tasks_to_todos(tasks)
+                    initial_response = self._generate_task_response_with_explanation(tasks, explanation)
+                    return tasks, initial_response
+            
+            # Fallback if AI planning fails
             tasks = self._decompose_request(request)
             self._add_tasks_to_todos(tasks)
             initial_response = self._generate_task_response(tasks)
@@ -99,64 +112,18 @@ class ThoughtLoop:
         return False
     
     def _decompose_request(self, request: str) -> List[Dict]:
-        """Break down a complex request into tasks"""
-        tasks = []
+        """Break down a complex request into tasks using AI"""
+        # This method is only called from the fallback path now
+        # The main path uses the task planner directly in process_request
         
-        # Common task patterns based on request type
-        if 'web' in request.lower() and ('gui' in request.lower() or 'interface' in request.lower()):
-            tasks = [
-                {"name": "Quick analysis: Check project context and requirements (30 seconds max)", "priority": TodoPriority.HIGH},
-                {"name": "Design the application structure", "priority": TodoPriority.HIGH},
-                {"name": "Create HTML structure", "priority": TodoPriority.HIGH},
-                {"name": "Add CSS styling", "priority": TodoPriority.MEDIUM},
-                {"name": "Implement JavaScript functionality", "priority": TodoPriority.HIGH},
-                {"name": "Add API integration", "priority": TodoPriority.HIGH},
-                {"name": "Test and refine the interface", "priority": TodoPriority.MEDIUM},
-                {"name": "Update OLLAMA.md with project documentation", "priority": TodoPriority.LOW}
-            ]
-        elif 'api' in request.lower() or 'backend' in request.lower():
-            tasks = [
-                {"name": "Quick analysis: Review codebase and requirements (30 seconds max)", "priority": TodoPriority.HIGH},
-                {"name": "Define API endpoints", "priority": TodoPriority.HIGH},
-                {"name": "Set up server framework", "priority": TodoPriority.HIGH},
-                {"name": "Implement data models", "priority": TodoPriority.HIGH},
-                {"name": "Create route handlers", "priority": TodoPriority.HIGH},
-                {"name": "Add error handling", "priority": TodoPriority.MEDIUM},
-                {"name": "Write API documentation", "priority": TodoPriority.LOW},
-                {"name": "Update OLLAMA.md with API details", "priority": TodoPriority.LOW}
-            ]
-        elif 'script' in request.lower() or 'automate' in request.lower():
-            tasks = [
-                {"name": "Quick analysis: Understand requirements (30 seconds max)", "priority": TodoPriority.HIGH},
-                {"name": "Design script structure", "priority": TodoPriority.HIGH},
-                {"name": "Implement core functionality", "priority": TodoPriority.HIGH},
-                {"name": "Add error handling", "priority": TodoPriority.MEDIUM},
-                {"name": "Test the script", "priority": TodoPriority.MEDIUM},
-                {"name": "Document script usage in OLLAMA.md", "priority": TodoPriority.LOW}
-            ]
-        elif 'improve' in request.lower() or 'enhance' in request.lower() or 'upgrade' in request.lower():
-            tasks = [
-                {"name": "Quick analysis: Review current implementation (30 seconds max)", "priority": TodoPriority.HIGH},
-                {"name": "Identify areas for improvement", "priority": TodoPriority.HIGH},
-                {"name": "Implement first improvement", "priority": TodoPriority.HIGH},
-                {"name": "Implement additional enhancements", "priority": TodoPriority.MEDIUM},
-                {"name": "Test all changes", "priority": TodoPriority.MEDIUM},
-                {"name": "Update documentation", "priority": TodoPriority.LOW}
-            ]
-        else:
-            # Generic complex task breakdown
-            tasks = [
-                {"name": "Quick analysis: Understand project and requirements (30 seconds max)", "priority": TodoPriority.HIGH},
-                {"name": "Design the solution architecture", "priority": TodoPriority.HIGH},
-                {"name": "Implement core functionality", "priority": TodoPriority.HIGH},
-                {"name": "Add supporting features", "priority": TodoPriority.MEDIUM},
-                {"name": "Test and refine", "priority": TodoPriority.MEDIUM},
-                {"name": "Update project documentation", "priority": TodoPriority.LOW}
-            ]
-        
-        # Customize tasks based on specific request details
-        for task in tasks:
-            task["context"] = request
+        # Fallback to simple task generation
+        tasks = [
+            {"name": f"Analyze requirements for: {request[:50]}...", "priority": TodoPriority.HIGH},
+            {"name": "Design the implementation approach", "priority": TodoPriority.HIGH},
+            {"name": "Implement the main functionality", "priority": TodoPriority.HIGH},
+            {"name": "Test and validate the implementation", "priority": TodoPriority.MEDIUM},
+            {"name": "Document the solution", "priority": TodoPriority.LOW}
+        ]
         
         return tasks
     
@@ -182,6 +149,23 @@ class ThoughtLoop:
             response += f"{i}. {emoji} {task['name']}\n"
         
         response += "\nI'll work through these tasks one at a time."
+        return response
+    
+    def _generate_task_response_with_explanation(self, tasks: List[Dict], explanation: str) -> str:
+        """Generate a response with AI-provided explanation"""
+        response = f"{explanation}\n\n"
+        response += "Here's my task breakdown:\n\n"
+        
+        for i, task in enumerate(tasks, 1):
+            priority_emoji = {
+                TodoPriority.HIGH: "🔴",
+                TodoPriority.MEDIUM: "🟡",
+                TodoPriority.LOW: "🟢"
+            }
+            emoji = priority_emoji.get(task["priority"], "⚪")
+            response += f"{i}. {emoji} {task['name']}\n"
+        
+        response += "\nI'll work through these tasks systematically."
         return response
     
     def get_next_task_context(self) -> Optional[str]:
