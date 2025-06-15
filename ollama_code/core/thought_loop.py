@@ -270,7 +270,7 @@ class ThoughtLoop:
                 context += "```\n\n"
                 context += "```python\n"
                 context += "# Find Python files\n"
-                context += "result = bash('find . -name "*.py" | head -20')\n"
+                context += "result = bash('find . -name \\\"*.py\\\" | head -20')\n"
                 context += "print(result)\n"
                 context += "```\n\n"
                 context += "After executing, summarize what you found.\n"
