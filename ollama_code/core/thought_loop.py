@@ -170,6 +170,15 @@ class ThoughtLoop:
             # Mark as in progress
             self.todo_manager.update_todo(next_todo.id, status=TodoStatus.IN_PROGRESS.value)
             
+            # Display starting task message
+            priority_colors = {
+                TodoPriority.HIGH: "red",
+                TodoPriority.MEDIUM: "yellow", 
+                TodoPriority.LOW: "green"
+            }
+            color = priority_colors.get(next_todo.priority, "white")
+            console.print(f"\n🚀 [cyan]Starting task:[/cyan] [{color}]{next_todo.content}[/{color}]")
+            
             # Build context from previous completed tasks
             completed = self.todo_manager.get_todos_by_status(TodoStatus.COMPLETED)
             context = f"Working on: {next_todo.content}\n"
@@ -186,10 +195,13 @@ class ThoughtLoop:
         """Mark the current in-progress task as complete"""
         in_progress = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
         if in_progress:
+            task = in_progress[0]
             self.todo_manager.update_todo(
-                in_progress[0].id,
+                task.id,
                 status=TodoStatus.COMPLETED.value
             )
+            # Display completion message
+            console.print(f"\n✅ [green]Task completed:[/green] {task.content}")
     
     def display_thinking_process(self, thought: str):
         """Display the AI's thinking process"""

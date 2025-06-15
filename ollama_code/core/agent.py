@@ -222,33 +222,16 @@ class OllamaCodeAgent:
         if not self._confirm_bash_command(command):
             return "Command cancelled by user"
         
-        import subprocess
-        import os
+        from ..utils.environment import get_environment_detector
         
-        try:
-            # Use shell=True for proper command interpretation
-            result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=30,
-                cwd=os.getcwd()
-            )
-            
-            output = result.stdout
-            if result.stderr:
-                output += f"\n[stderr]\n{result.stderr}"
-            
-            if result.returncode != 0:
-                return f"Command failed with exit code {result.returncode}:\n{output}"
-            
-            return output if output else "Command executed successfully (no output)"
-            
-        except subprocess.TimeoutExpired:
-            return "Command timed out after 30 seconds"
-        except Exception as e:
-            return f"Error executing command: {e}"
+        # Use environment detector for proper shell execution
+        env_detector = get_environment_detector()
+        result = env_detector.execute_command(command, timeout=30)
+        
+        if result['success']:
+            return result['output'] if result['output'] else "Command executed successfully (no output)"
+        else:
+            return f"Command failed: {result['error']}\n{result['output']}"
     
     def _confirm_bash_command(self, command):
         """Confirm bash command execution with user"""
@@ -283,6 +266,7 @@ class OllamaCodeAgent:
             console.print(get_message('bash_operations.command_warning'))
         
         # Show working directory
+        import os
         console.print(f"[dim]Working directory: {os.getcwd()}[/dim]")
         
         # Show options
@@ -317,6 +301,10 @@ class OllamaCodeAgent:
         if tasks and task_response:
             # Display task breakdown
             console.print(Panel(task_response, title="📋 Task Planning", border_style="cyan"))
+            
+            # Display the todo list to show all tasks
+            console.print("\n📝 [cyan]Task List Created:[/cyan]")
+            self.todo_manager.display_todos()
             
             # Add system message about task breakdown
             user_input = f"{user_input}\n\n[System: I've broken this down into {len(tasks)} tasks. Please work through them systematically.]"
@@ -462,6 +450,11 @@ class OllamaCodeAgent:
             next_context = self.thought_loop.get_next_task_context()
             if next_context:
                 console.print(f"\n{self.thought_loop.get_progress_summary()}")
+                
+                # Display updated todo list to show progress
+                console.print("\n📊 [cyan]Task Progress:[/cyan]")
+                self.todo_manager.display_todos()
+                
                 console.print(f"\n🔄 [cyan]Continuing with next task...[/cyan]")
                 # Recursively continue with next task
                 await self.chat(next_context, enable_esc_cancel=enable_esc_cancel, auto_continue=True)
