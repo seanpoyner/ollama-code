@@ -25,12 +25,17 @@ function Install-Package {
     
     Write-Host "Installing $DisplayName..." -NoNewline
     
-    $output = pip install $PackageName 2>&1
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host " ✓" -ForegroundColor Green
-        return $true
-    } else {
+    try {
+        $output = pip install $PackageName 2>&1
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host " ✓" -ForegroundColor Green
+            return $true
+        } else {
+            Write-Host " ✗" -ForegroundColor Red
+            return $false
+        }
+    } catch {
         Write-Host " ✗" -ForegroundColor Red
         return $false
     }
