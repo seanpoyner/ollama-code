@@ -166,8 +166,12 @@ async def main(resume=False):
                 agent.show_mcp_tools()
                 continue
             elif user_input.lower() == '/help':
+                help_content = get_message('help.panel_content')
+                # Add quick mode to help if not already there
+                if '/quick' not in help_content:
+                    help_content += "\n• /quick - Toggle quick analysis mode (30s limit for analysis tasks)"
                 console.print(Panel(
-                    get_message('help.panel_content'),
+                    help_content,
                     title=get_message('help.panel_title'),
                     border_style="blue"
                 ))
@@ -186,6 +190,17 @@ async def main(resume=False):
                     console.print("[dim]Tasks will be completed automatically without manual intervention[/dim]")
                 else:
                     console.print("[dim]Tasks will pause for review after each completion[/dim]")
+                continue
+            elif user_input.lower() == '/quick':
+                # Toggle quick analysis mode
+                agent.quick_analysis_mode = not agent.quick_analysis_mode
+                status = "enabled" if agent.quick_analysis_mode else "disabled"
+                console.print(f"⚡ [cyan]Quick analysis mode {status}[/cyan]")
+                
+                if agent.quick_analysis_mode:
+                    console.print("[dim]Analysis tasks limited to 30 seconds with brief responses[/dim]")
+                else:
+                    console.print("[dim]Analysis tasks allowed more time for thorough examination[/dim]")
                 continue
             elif user_input.lower() == '/tasks':
                 # Show current task progress

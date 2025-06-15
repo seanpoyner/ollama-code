@@ -33,6 +33,8 @@ class OllamaCodeAgent:
         self.thought_loop = ThoughtLoop(self.todo_manager)
         self.auto_mode = False  # Auto-continue tasks
         self.auto_approve_writes = False  # Auto-approve file writes
+        self.quick_analysis_mode = True  # Limit analysis task depth
+        self.analysis_timeout = 30  # Seconds for analysis tasks
         self.system_prompt = self._build_system_prompt()
         # Initialize sandbox with confirmation callbacks
         self.sandbox = CodeSandbox(write_confirmation_callback=self._confirm_file_write)
@@ -293,7 +295,7 @@ class OllamaCodeAgent:
             
             console.print("[red]Please enter: y/yes, n/no, or a/all[/red]")
 
-    async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False, skip_task_breakdown=False, is_task_execution=False):
+    async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False, skip_task_breakdown=False, is_task_execution=False, max_tokens=None):
         """Main chat interface with tool execution"""
         # Check if this needs task decomposition (unless explicitly skipped)
         if skip_task_breakdown or is_task_execution:
@@ -349,11 +351,27 @@ class OllamaCodeAgent:
                 live.update(Panel(status_text, border_style="yellow", title="Processing"))
                 
                 # Stream the response
-                stream = ollama.chat(
-                    model=self.model,
-                    messages=messages,
-                    stream=True
-                )
+                chat_options = {
+                    'model': self.model,
+                    'messages': messages,
+                    'stream': True
+                }
+                
+                # Add options for response length control if specified
+                if max_tokens:
+                    chat_options['options'] = {
+                        'num_predict': max_tokens,
+                        'temperature': 0.3  # Lower temperature for more focused responses
+                    }
+                elif is_task_execution and self._is_analysis_task(user_input):
+                    # For analysis tasks, use shorter responses
+                    chat_options['options'] = {
+                        'num_predict': 800 if self.quick_analysis_mode else 1500,  # Shorter for quick mode
+                        'temperature': 0.3,
+                        'top_p': 0.8  # More focused responses
+                    }
+                
+                stream = ollama.chat(**chat_options)
                 
                 chunk_count = 0
                 last_update = time.time()
@@ -675,6 +693,8 @@ class OllamaCodeAgent:
     
     async def _execute_tasks_sequentially(self, enable_esc_cancel=True):
         """Execute tasks one by one in separate AI calls"""
+        import asyncio
+        
         while self.thought_loop.should_continue_tasks():
             # Get the next task context
             next_task_context = self.thought_loop.get_next_task_context()
@@ -699,15 +719,27 @@ class OllamaCodeAgent:
                 'content': focused_system_prompt
             })
             
-            # Execute this single task
-            await self.chat(
-                next_task_context, 
-                enable_esc_cancel=enable_esc_cancel,
-                auto_continue=False,  # Don't auto-continue within the task
-                skip_function_extraction=False,
-                skip_task_breakdown=True,  # Don't decompose the task further
-                is_task_execution=True  # Flag to indicate we're executing a task
-            )
+            # Add timeout for long-running tasks
+            # Use shorter timeout for analysis tasks
+            is_analysis = self._is_analysis_task(next_task_context)
+            timeout_seconds = self.analysis_timeout if is_analysis else 120  # 30s for analysis, 2 min for others
+            
+            try:
+                # Execute this single task with timeout
+                await asyncio.wait_for(
+                    self.chat(
+                        next_task_context, 
+                        enable_esc_cancel=enable_esc_cancel,
+                        auto_continue=False,  # Don't auto-continue within the task
+                        skip_function_extraction=False,
+                        skip_task_breakdown=True,  # Don't decompose the task further
+                        is_task_execution=True  # Flag to indicate we're executing a task
+                    ),
+                    timeout=timeout_seconds
+                )
+            except asyncio.TimeoutError:
+                console.print(f"\n⏱️ [yellow]Task timed out after {timeout_seconds} seconds[/yellow]")
+                console.print("[dim]Moving to next task...[/dim]")
             
             # Mark the current task as complete
             in_progress_tasks = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
@@ -723,3 +755,13 @@ class OllamaCodeAgent:
                 console.print("\n📊 [cyan]Task Progress:[/cyan]")
                 self.todo_manager.display_todos()
                 console.print(f"\n🔄 [cyan]Moving to next task...[/cyan]")
+    
+    def _is_analysis_task(self, input_text: str) -> bool:
+        """Check if the current task is an analysis/information gathering task"""
+        analysis_keywords = [
+            'analyze', 'gather', 'information', 'examine', 'explore',
+            'understand', 'review', 'assess', 'evaluate', 'study',
+            'investigate', 'inspect', 'survey', 'scan'
+        ]
+        input_lower = input_text.lower()
+        return any(keyword in input_lower for keyword in analysis_keywords)

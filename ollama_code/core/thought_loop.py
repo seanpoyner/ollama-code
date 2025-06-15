@@ -105,7 +105,7 @@ class ThoughtLoop:
         # Common task patterns based on request type
         if 'web' in request.lower() and ('gui' in request.lower() or 'interface' in request.lower()):
             tasks = [
-                {"name": "Gather information about the project context and requirements", "priority": TodoPriority.HIGH},
+                {"name": "Quick analysis: Check project context and requirements (30 seconds max)", "priority": TodoPriority.HIGH},
                 {"name": "Design the application structure", "priority": TodoPriority.HIGH},
                 {"name": "Create HTML structure", "priority": TodoPriority.HIGH},
                 {"name": "Add CSS styling", "priority": TodoPriority.MEDIUM},
@@ -116,7 +116,7 @@ class ThoughtLoop:
             ]
         elif 'api' in request.lower() or 'backend' in request.lower():
             tasks = [
-                {"name": "Analyze existing codebase and gather requirements", "priority": TodoPriority.HIGH},
+                {"name": "Quick analysis: Review codebase and requirements (30 seconds max)", "priority": TodoPriority.HIGH},
                 {"name": "Define API endpoints", "priority": TodoPriority.HIGH},
                 {"name": "Set up server framework", "priority": TodoPriority.HIGH},
                 {"name": "Implement data models", "priority": TodoPriority.HIGH},
@@ -127,7 +127,7 @@ class ThoughtLoop:
             ]
         elif 'script' in request.lower() or 'automate' in request.lower():
             tasks = [
-                {"name": "Gather information and analyze requirements", "priority": TodoPriority.HIGH},
+                {"name": "Quick analysis: Understand requirements (30 seconds max)", "priority": TodoPriority.HIGH},
                 {"name": "Design script structure", "priority": TodoPriority.HIGH},
                 {"name": "Implement core functionality", "priority": TodoPriority.HIGH},
                 {"name": "Add error handling", "priority": TodoPriority.MEDIUM},
@@ -136,7 +136,7 @@ class ThoughtLoop:
             ]
         elif 'improve' in request.lower() or 'enhance' in request.lower() or 'upgrade' in request.lower():
             tasks = [
-                {"name": "Analyze current implementation", "priority": TodoPriority.HIGH},
+                {"name": "Quick analysis: Review current implementation (30 seconds max)", "priority": TodoPriority.HIGH},
                 {"name": "Identify areas for improvement", "priority": TodoPriority.HIGH},
                 {"name": "Implement first improvement", "priority": TodoPriority.HIGH},
                 {"name": "Implement additional enhancements", "priority": TodoPriority.MEDIUM},
@@ -146,7 +146,7 @@ class ThoughtLoop:
         else:
             # Generic complex task breakdown
             tasks = [
-                {"name": "Gather project context and analyze requirements", "priority": TodoPriority.HIGH},
+                {"name": "Quick analysis: Understand project and requirements (30 seconds max)", "priority": TodoPriority.HIGH},
                 {"name": "Design the solution architecture", "priority": TodoPriority.HIGH},
                 {"name": "Implement core functionality", "priority": TodoPriority.HIGH},
                 {"name": "Add supporting features", "priority": TodoPriority.MEDIUM},
@@ -215,11 +215,14 @@ class ThoughtLoop:
             # Add specific guidance for information gathering tasks
             if "gather" in next_todo.content.lower() or "analyze" in next_todo.content.lower():
                 context += "\n[Guidance for information gathering:]"
-                context += "\n- Use read_file() to examine OLLAMA.md if it exists"
-                context += "\n- Use list_files() to explore the project structure"
-                context += "\n- Look for README files, configuration files, and key source files"
-                context += "\n- Ask clarifying questions if needed"
-                context += "\n- Summarize your findings\n"
+                context += "\n- BE BRIEF AND FOCUSED - This is just information gathering"
+                context += "\n- Use read_file() to quickly check OLLAMA.md if it exists (just first 50 lines)"
+                context += "\n- Use list_files() to get a quick overview of the project structure"
+                context += "\n- Look for README, package.json, requirements.txt, or similar files"
+                context += "\n- DO NOT read every file - just get a general understanding"
+                context += "\n- Provide a BRIEF summary (3-5 key points)"
+                context += "\n- If information is unclear, note what you need to know"
+                context += "\n- This should take less than 30 seconds\n"
             
             # Add specific guidance for OLLAMA.md update tasks
             elif "ollama.md" in next_todo.content.lower() and ("update" in next_todo.content.lower() or "document" in next_todo.content.lower()):
