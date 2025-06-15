@@ -202,7 +202,12 @@ class ThoughtLoop:
             context += "```python\n"
             context += 'write_file("filename.ext", """file contents here""")\n'
             context += "```\n"
-            context += "Do NOT just show file contents in code blocks - actually create them!"
+            context += "Do NOT just show file contents in code blocks - actually create them!\n\n"
+            context += "CRITICAL: If you are confused about the project context or what files exist:\n"
+            context += "1. Use read_file() to read OLLAMA.md for project context\n"
+            context += "2. Use list_files() to see what files exist in the project\n"
+            context += "3. Use bash('ls -la') to see all files including hidden ones\n"
+            context += "4. Actually implement what the task asks for - don't just say it's not possible!"
             
             # Add specific guidance for information gathering tasks
             if "gather" in next_todo.content.lower() or "analyze" in next_todo.content.lower():

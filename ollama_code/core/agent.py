@@ -699,7 +699,9 @@ class OllamaCodeAgent:
         """Execute tasks one by one in separate AI calls"""
         import asyncio
         
-        while self.thought_loop.should_continue_tasks():
+        cancelled_all = False
+        
+        while self.thought_loop.should_continue_tasks() and not cancelled_all:
             # Get the next task context
             next_task_context = self.thought_loop.get_next_task_context()
             if not next_task_context:
@@ -742,8 +744,25 @@ class OllamaCodeAgent:
                     timeout=timeout_seconds
                 )
                 
+                # Check if task was cancelled by user
+                if "Request cancelled" in result:
+                    console.print("\n❌ [red]Task cancelled by user[/red]")
+                    # Ask if they want to stop all tasks
+                    from rich.prompt import Prompt
+                    choice = Prompt.ask(
+                        "\n[yellow]Stop all remaining tasks?[/yellow]",
+                        choices=["y", "yes", "n", "no"],
+                        default="y"
+                    )
+                    if choice.lower() in ["y", "yes"]:
+                        cancelled_all = True
+                        console.print("[red]Stopping all task execution.[/red]")
+                        break
+                    else:
+                        console.print("[green]Continuing with next task...[/green]")
+                
                 # Check if task was aborted due to file write timeout
-                if "Timeout waiting for confirmation" in result:
+                elif "Timeout waiting for confirmation" in result:
                     console.print("\n❌ [red]Task aborted: User did not respond to file write confirmation[/red]")
                     console.print("[yellow]Stopping task execution. You can continue with /tasks command.[/yellow]")
                     break
@@ -752,39 +771,51 @@ class OllamaCodeAgent:
                 console.print(f"\n⏱️ [yellow]Task timed out after {timeout_seconds} seconds[/yellow]")
                 console.print("[dim]Moving to next task...[/dim]")
             
-            # Mark the current task as complete
-            in_progress_tasks = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
-            if in_progress_tasks:
-                self.thought_loop.mark_current_task_complete()
+            # Mark the current task as complete only if not cancelled
+            if not cancelled_all:
+                in_progress_tasks = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
+                if in_progress_tasks:
+                    self.thought_loop.mark_current_task_complete()
             
             # Show progress
             console.print(f"\n{self.thought_loop.get_progress_summary()}")
             
             # Display updated todo list
             pending_tasks = self.todo_manager.get_todos_by_status(TodoStatus.PENDING)
-            if pending_tasks:
+            if pending_tasks and not cancelled_all:
                 console.print("\n📊 [cyan]Task Progress:[/cyan]")
                 self.todo_manager.display_todos()
                 console.print(f"\n🔄 [cyan]Moving to next task...[/cyan]")
         
-        # Show completion message when all tasks are done
-        completed_tasks = self.todo_manager.get_todos_by_status(TodoStatus.COMPLETED)
-        total_tasks = len(self.todo_manager.todos)
-        
-        if not self.thought_loop.should_continue_tasks() and completed_tasks:
+        # Show appropriate message based on how execution ended
+        if cancelled_all:
             console.print("\n" + "=" * 50)
-            console.print("\n🎉 [bold green]All tasks completed![/bold green]")
-            console.print(f"\n✅ Completed {len(completed_tasks)} out of {total_tasks} tasks")
-            console.print("\n📝 Task Summary:")
-            for task in completed_tasks:
-                console.print(f"   ✓ {task.content}")
-            
-            # Clear todos after completion
-            self.todo_manager.clear()
-            console.print("\n🧹 [dim]Todo list cleared[/dim]")
-            
-            console.print("\n💬 [cyan]Ready for your next command![/cyan]")
+            console.print("\n⛔ [red]Task execution stopped by user[/red]")
+            completed_tasks = self.todo_manager.get_todos_by_status(TodoStatus.COMPLETED)
+            pending_tasks = self.todo_manager.get_todos_by_status(TodoStatus.PENDING)
+            in_progress_tasks = self.todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
+            console.print(f"\n📊 Status: {len(completed_tasks)} completed, {len(in_progress_tasks)} in progress, {len(pending_tasks)} pending")
+            console.print("\n💡 [yellow]Use /tasks to see remaining tasks or start a new request[/yellow]")
             console.print("=" * 50 + "\n")
+        else:
+            # Show completion message when all tasks are done
+            completed_tasks = self.todo_manager.get_todos_by_status(TodoStatus.COMPLETED)
+            total_tasks = len(self.todo_manager.todos)
+            
+            if not self.thought_loop.should_continue_tasks() and completed_tasks:
+                console.print("\n" + "=" * 50)
+                console.print("\n🎉 [bold green]All tasks completed![/bold green]")
+                console.print(f"\n✅ Completed {len(completed_tasks)} out of {total_tasks} tasks")
+                console.print("\n📝 Task Summary:")
+                for task in completed_tasks:
+                    console.print(f"   ✓ {task.content}")
+                
+                # Clear todos after completion
+                self.todo_manager.clear()
+                console.print("\n🧹 [dim]Todo list cleared[/dim]")
+                
+                console.print("\n💬 [cyan]Ready for your next command![/cyan]")
+                console.print("=" * 50 + "\n")
     
     def _is_analysis_task(self, input_text: str) -> bool:
         """Check if the current task is an analysis/information gathering task"""
