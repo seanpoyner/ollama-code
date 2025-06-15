@@ -45,8 +45,9 @@ Important guidelines:
 - Create tasks specific to the actual request, not generic steps
 - Include technical implementation details in task names
 - Typical task count: 4-8 tasks
-- First task should analyze/understand requirements (keep it under 30 seconds)
-- Last task should usually be documentation/testing
+- First task should analyze/understand requirements by ACTUALLY exploring files
+- Include "create X file" or "implement Y function" in task names
+- Make tasks concrete and actionable, not vague
 
 CRITICAL FOR ANALYSIS TASKS:
 - When a task involves analyzing, reviewing, or understanding code/files:

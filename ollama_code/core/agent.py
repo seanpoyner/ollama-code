@@ -785,6 +785,16 @@ class OllamaCodeAgent:
                         if not self._validate_task_completion(current_task.content, result):
                             console.print("\n⚠️ [yellow]Task not properly completed - no files were created[/yellow]")
                             task_summary = "Task attempted but no files were created"
+                            
+                            # Add feedback to force file creation on retry
+                            self.conversation.append({
+                                'role': 'system',
+                                'content': (
+                                    "CRITICAL ERROR: You did NOT create any files! "
+                                    "You MUST use write_file() to actually create files. "
+                                    "Do NOT just explain or show code - CREATE THE FILES!"
+                                )
+                            })
                     
                     self.thought_loop.mark_current_task_complete(task_summary)
             
@@ -862,19 +872,28 @@ class OllamaCodeAgent:
                 return summary
         
         # Look for files created
-        file_patterns = [
-            r'write_file\(["\']([^"\'])+["\']',
-            r'created?\s+(?:file|script)[:\s]+([^\n]+)',
-            r'wrote\s+([^\n]+\.\w+)'
-        ]
-        
-        created_files = []
-        for pattern in file_patterns:
-            matches = re.findall(pattern, result, re.IGNORECASE)
-            created_files.extend(matches)
+        file_pattern = r'write_file\(["\']([^"\']*)'
+        created_files = re.findall(file_pattern, result)
         
         if created_files:
             return f"Created files: {', '.join(set(created_files[:5]))}"
+        
+        # Look for key findings from analysis
+        if "=== " in result:  # Our analysis output format
+            findings = []
+            for line in result.split('\n'):
+                if "API endpoint" in line or "model" in line.lower():
+                    findings.append(line.strip())
+            if findings:
+                return " | ".join(findings[:3])
+        
+        # Extract execution output
+        if "print(" in result:
+            # Find printed output
+            output_match = re.search(r'print\([^)]+\).*?\n(.+?)(?:\n|$)', result, re.DOTALL)
+            if output_match:
+                output = output_match.group(1).strip()
+                return output[:200] + "..." if len(output) > 200 else output
         
         # Default: extract first meaningful line
         lines = result.strip().split('\n')
