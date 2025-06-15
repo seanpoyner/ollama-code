@@ -18,16 +18,12 @@ class ThoughtLoop:
         self.todo_manager = todo_manager or TodoManager()
         self.current_task_context = []
         self.thinking_steps = []
-        self.original_request = ""  # Store the original user request for context
     
     def process_request(self, request: str) -> Tuple[List[Dict], str]:
         """
         Process a user request by breaking it down into tasks
         Returns: (tasks, initial_response)
         """
-        # Store the original request for context
-        self.original_request = request
-        
         # Analyze if this is a complex request that needs task breakdown
         if self._is_complex_request(request):
             tasks = self._decompose_request(request)
@@ -209,11 +205,10 @@ class ThoughtLoop:
             pending = self.todo_manager.get_todos_by_status(TodoStatus.PENDING)
             
             # Create focused context for this specific task
-            context = f"Original user request: {self.original_request}\n\n"
-            context += f"Current task to complete: {next_todo.content}\n\n"
+            context = f"Please complete the following task:\n\n{next_todo.content}\n\n"
             context += "Instructions:\n"
             context += "- Focus ONLY on this specific task\n"
-            context += "- Complete the task thoroughly based on the original user request\n"
+            context += "- Complete the task thoroughly\n"
             context += "- Do NOT attempt to work on any other tasks\n"
             context += "- When done, provide a brief summary of what you accomplished"
             

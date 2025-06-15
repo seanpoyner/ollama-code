@@ -203,18 +203,11 @@ async def main(resume=False):
                     console.print("[dim]Analysis tasks allowed more time for thorough examination[/dim]")
                 continue
             elif user_input.lower() == '/tasks':
-                # Check if there are pending tasks to execute
-                pending_tasks = todo_manager.get_todos_by_status(TodoStatus.PENDING)
-                in_progress_tasks = todo_manager.get_todos_by_status(TodoStatus.IN_PROGRESS)
-                
-                if pending_tasks or in_progress_tasks:
-                    # Show current task progress
-                    todo_manager.display_todos()
-                    console.print(f"\n🚀 [cyan]Starting task execution...[/cyan]")
-                    # Execute tasks
-                    await agent._execute_tasks_sequentially(enable_esc_cancel=True)
-                else:
-                    console.print("[dim]No pending tasks to execute. Use a natural language request to create tasks.[/dim]")
+                # Show current task progress
+                todo_manager.display_todos()
+                progress = agent.thought_loop.get_progress_summary()
+                if progress:
+                    console.print(f"\n{progress}")
                 continue
             elif user_input.lower().startswith('/todo'):
                 # Parse todo command

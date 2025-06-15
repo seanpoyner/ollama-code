@@ -311,10 +311,13 @@ class OllamaCodeAgent:
             console.print("\n📝 [cyan]Task List Created:[/cyan]")
             self.todo_manager.display_todos()
             
-            # IMPORTANT: Return control to user after creating tasks
-            # Don't automatically start execution
-            console.print(f"\n✅ [cyan]Tasks created! Use [bold]/tasks[/bold] to start execution.[/cyan]")
-            return "Task planning completed. Use /tasks to execute."
+            # IMPORTANT: Return immediately after creating tasks
+            # Don't let the AI continue working on tasks in this call
+            console.print(f"\n🚀 [cyan]Tasks created! Starting execution...[/cyan]")
+            
+            # Execute tasks in separate calls
+            await self._execute_tasks_sequentially(enable_esc_cancel)
+            return "Task execution completed. Control returned to user."
         
         # Add hint for file creation requests
         if any(keyword in user_input.lower() for keyword in ['create', 'write', 'generate']) and \
