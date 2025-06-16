@@ -522,10 +522,16 @@ class OllamaCodeAgent:
             
             if code_matches:
                 console.print(f"\n🔧 [cyan]Found {len(code_matches)} code blocks to execute[/cyan]")
+                # Log extracted code for debugging
+                for idx, code_block in enumerate(code_matches, 1):
+                    logger.debug(f"Code block {idx}: {code_block[:100]}...")
             
             for i, code in enumerate(code_matches, 1):
                 try:
                     console.print(f"\n⚡ [yellow]Executing code block {i}/{len(code_matches)}[/yellow]")
+                    # Check if this code block contains write_file
+                    if 'write_file' in code:
+                        logger.info(f"Code block {i} contains write_file call")
                     result = self.execute_python(code)
                     execution_results.append(result)
                     

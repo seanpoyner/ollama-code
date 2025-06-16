@@ -216,15 +216,17 @@ class DocCache:
     
     def _escape_fts_query(self, query: str) -> str:
         """Escape special characters for FTS5"""
-        # FTS5 special chars: " * ( ) : . , ; @ -
+        # For FTS5, we need to be more careful with escaping
+        # Simply quote the entire query if it contains special characters
         special_chars = ['"', '*', '(', ')', ':', '.', ',', ';', '@', '-']
-        escaped = query
-        for char in special_chars:
-            if char in escaped:
-                escaped = escaped.replace(char, f' {char} ')
-        # Clean up multiple spaces
-        escaped = ' '.join(escaped.split())
-        return escaped
+        
+        # Check if query contains any special characters
+        if any(char in query for char in special_chars):
+            # Remove any existing quotes and wrap in quotes
+            cleaned = query.replace('"', '')
+            return f'"{cleaned}"'
+        
+        return query
     
     def search(self, query: str, source_type: Optional[str] = None, 
                limit: int = 10) -> List[DocEntry]:
@@ -249,31 +251,62 @@ class DocCache:
                 logger.warning(f"Failed to escape query '{query}': {e}. Using simple search.")
                 escaped_query = query.replace('"', '')
             
-            if source_type:
-                cursor = conn.execute('''
-                    SELECT doc_cache.*, rank as rank_score FROM doc_cache
-                    JOIN doc_cache_fts ON doc_cache.id = doc_cache_fts.rowid
-                    WHERE doc_cache_fts MATCH ? 
-                    AND doc_cache.source_type = ?
-                    AND doc_cache.expires_at > ?
-                    ORDER BY rank_score, doc_cache.relevance_score DESC
-                    LIMIT ?
-                ''', (escaped_query, source_type, datetime.utcnow().isoformat(), limit))
-            else:
-                cursor = conn.execute('''
-                    SELECT doc_cache.*, rank as rank_score FROM doc_cache
-                    JOIN doc_cache_fts ON doc_cache.id = doc_cache_fts.rowid
-                    WHERE doc_cache_fts MATCH ?
-                    AND doc_cache.expires_at > ?
-                    ORDER BY rank_score, doc_cache.relevance_score DESC
-                    LIMIT ?
-                ''', (escaped_query, datetime.utcnow().isoformat(), limit))
-            
-            results = []
-            for row in cursor:
-                results.append(DocEntry.from_dict(dict(row)))
-            
-            return results
+            try:
+                if source_type:
+                    cursor = conn.execute('''
+                        SELECT doc_cache.*, rank as rank_score FROM doc_cache
+                        JOIN doc_cache_fts ON doc_cache.id = doc_cache_fts.rowid
+                        WHERE doc_cache_fts MATCH ? 
+                        AND doc_cache.source_type = ?
+                        AND doc_cache.expires_at > ?
+                        ORDER BY rank_score, doc_cache.relevance_score DESC
+                        LIMIT ?
+                    ''', (escaped_query, source_type, datetime.utcnow().isoformat(), limit))
+                else:
+                    cursor = conn.execute('''
+                        SELECT doc_cache.*, rank as rank_score FROM doc_cache
+                        JOIN doc_cache_fts ON doc_cache.id = doc_cache_fts.rowid
+                        WHERE doc_cache_fts MATCH ?
+                        AND doc_cache.expires_at > ?
+                        ORDER BY rank_score, doc_cache.relevance_score DESC
+                        LIMIT ?
+                    ''', (escaped_query, datetime.utcnow().isoformat(), limit))
+                
+                results = []
+                for row in cursor:
+                    results.append(DocEntry.from_dict(dict(row)))
+                
+                return results
+                
+            except sqlite3.OperationalError as e:
+                if "fts5: syntax error" in str(e):
+                    logger.warning(f"FTS5 syntax error for query '{query}': {e}. Falling back to LIKE search.")
+                    # Fall back to simple LIKE search
+                    if source_type:
+                        cursor = conn.execute('''
+                            SELECT * FROM doc_cache
+                            WHERE (title LIKE ? OR content LIKE ?)
+                            AND source_type = ?
+                            AND expires_at > ?
+                            ORDER BY relevance_score DESC
+                            LIMIT ?
+                        ''', (f'%{query}%', f'%{query}%', source_type, datetime.utcnow().isoformat(), limit))
+                    else:
+                        cursor = conn.execute('''
+                            SELECT * FROM doc_cache
+                            WHERE (title LIKE ? OR content LIKE ?)
+                            AND expires_at > ?
+                            ORDER BY relevance_score DESC
+                            LIMIT ?
+                        ''', (f'%{query}%', f'%{query}%', datetime.utcnow().isoformat(), limit))
+                    
+                    results = []
+                    for row in cursor:
+                        results.append(DocEntry.from_dict(dict(row)))
+                    
+                    return results
+                else:
+                    raise
     
     def search_by_tags(self, tags: List[str], limit: int = 10) -> List[DocEntry]:
         """

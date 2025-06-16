@@ -234,26 +234,44 @@ class ThoughtLoop:
             if previous_results:
                 context += previous_results + "\n"
             
-            context += "EXECUTION RULES:\n"
-            context += "1. EXECUTE CODE DIRECTLY - Do not explain what you would do\n"
-            context += "2. Use SEPARATE code blocks for each action\n"
-            context += "3. NEVER show write_file() inside explanatory text\n"
-            context += "4. Execute commands ONE AT A TIME\n\n"
+            context += "🚨 CRITICAL EXECUTION RULES - TASK WILL FAIL IF NOT FOLLOWED:\n"
+            context += "1. You MUST use ```python code blocks for ALL file creation\n"
+            context += "2. You MUST call write_file() inside the Python code blocks\n"
+            context += "3. NEVER use ```html, ```css, ```javascript, ```js blocks\n"
+            context += "4. NEVER just show file content without write_file()\n"
+            context += "5. The task validator REQUIRES actual files to be created\n\n"
+            context += "⚠️ TASK VALIDATION: No files created = TASK FAILED!\n\n"
             
-            context += "CORRECT APPROACH:\n"
-            context += "Step 1: Execute any exploration (if needed)\n"
+            context += "✅ CORRECT APPROACH (YOU MUST DO THIS):\n"
             context += "```python\n"
-            context += "# Your exploration code here\n"
+            context += "# Create HTML file\n"
+            context += 'write_file("index.html", """<!DOCTYPE html>\n<html>\n<body>\n  <h1>Hello</h1>\n</body>\n</html>""")\n'
             context += "```\n\n"
-            context += "Step 2: Create the file\n"
             context += "```python\n"
-            context += 'write_file("filename.py", """actual file contents""")\n'
+            context += "# Create CSS file\n"
+            context += 'write_file("styles.css", """body { margin: 0; }""")\n'
             context += "```\n\n"
             
-            context += "WRONG APPROACH (DO NOT DO THIS):\n"
-            context += "- Do not write explanatory paragraphs\n"
-            context += "- Do not show code in text: 'Here is what the file would contain...'\n"
-            context += "- Do not put write_file() calls inside larger code blocks\n\n"
+            context += "❌ WRONG APPROACH (NEVER DO THIS):\n"
+            context += "```html\n"
+            context += "<!-- This doesn't create a file! -->\n"
+            context += "<html>...</html>\n"
+            context += "```\n\n"
+            context += "Remember: The task validator will FAIL if no files are created!\n\n"
+            
+            # Add specific guidance for project creation tasks
+            if "create" in next_todo.content.lower() and "project" in next_todo.content.lower():
+                context += "🚨 PROJECT CREATION TASK - YOU MUST CREATE FILES:\n"
+                context += "When creating a project directory, you MUST also create initial files:\n\n"
+                context += "```python\n"
+                context += "# Step 1: Create the directory\n"
+                context += 'bash("mkdir -p ollama-chat")\n\n'
+                context += "# Step 2: Create initial project files\n"
+                context += 'write_file("ollama-chat/requirements.txt", """flask>=2.0.0\nollama>=0.1.0\nrequests>=2.25.0""")\n\n'
+                context += 'write_file("ollama-chat/app.py", """from flask import Flask\n\napp = Flask(__name__)\n\n@app.route("/")\ndef index():\n    return "Ollama Chat App"\\n\\nif __name__ == "__main__":\n    app.run(debug=True)""")\n\n'
+                context += 'write_file("ollama-chat/README.md", """# Ollama Chat\\n\\nA web interface for chatting with Ollama models.""")\n'
+                context += "```\n\n"
+                context += "IMPORTANT: Creating just the directory is NOT enough. You MUST create files!\n\n"
             
             # Check if we have sub-tasks to execute
             if hasattr(self, 'current_subtask_manager') and self.current_subtask_manager:
@@ -293,9 +311,18 @@ class ThoughtLoop:
             # Add specific guidance for file creation tasks
             elif any(word in next_todo.content.lower() for word in ['create', 'write', 'develop', 'implement', 'script', 'test', 'endpoint', 'backend', 'service']):
                 context += "\n[FILE CREATION TASK]\n\n"
-                context += "You MUST create files by executing code blocks.\n"
-                context += "DO NOT explain or show what you would do.\n"
-                context += "Execute the appropriate code based on the task.\n\n"
+                context += "CRITICAL: You MUST create actual files using Python code blocks with write_file().\n"
+                context += "DO NOT just show file contents in HTML/CSS/JS code blocks.\n"
+                context += "DO NOT explain what you would do - EXECUTE the code.\n\n"
+                context += "CORRECT approach - use Python code blocks:\n"
+                context += "```python\n"
+                context += "# Create the actual file\n"
+                context += 'write_file("myfile.py", """file contents here""")\n'
+                context += "```\n\n"
+                context += "WRONG approach - DO NOT do this:\n"
+                context += "```html\n"
+                context += "<!-- This just shows content, doesn't create a file -->\n"
+                context += "```\n\n"
                 
                 # Add working directory context
                 context += f"CURRENT WORKING DIRECTORY: {os.getcwd()}\n\n"
@@ -329,13 +356,21 @@ class ThoughtLoop:
                     context += "        print(\"Project directory not found!\")\n"
                     context += "```\n\n"
                 
-                # Provide simpler guidance without complex string escaping
-                context += "Example for creating a Python file:\n"
+                # Provide clear examples for different file types
+                context += "EXAMPLES - You MUST follow these patterns:\n\n"
+                context += "For Python files:\n"
                 context += "```python\n"
-                context += "content = '''import requests\n\ndef my_function():\n    pass\n'''\n"
-                context += "write_file('my_file.py', content)\n"
+                context += 'write_file("app.py", """from flask import Flask\n\napp = Flask(__name__)\n\n@app.route("/")\ndef home():\n    return "Hello World"\n""")\n'
                 context += "```\n\n"
-                context += "Execute similar code for your specific task.\n"
+                context += "For HTML files:\n"
+                context += "```python\n"
+                context += 'write_file("index.html", """<!DOCTYPE html>\n<html>\n<head>\n    <title>My App</title>\n</head>\n<body>\n    <h1>Welcome</h1>\n</body>\n</html>""")\n'
+                context += "```\n\n"
+                context += "For JavaScript files:\n"
+                context += "```python\n"
+                context += 'write_file("script.js", """function init() {\n    console.log("App started");\n}\n\ninit();""")\n'
+                context += "```\n\n"
+                context += "IMPORTANT: Always use Python code blocks with write_file() - NEVER use other language code blocks!\n"
             
             # Add specific guidance for OLLAMA.md update tasks
             elif "ollama.md" in next_todo.content.lower() and ("update" in next_todo.content.lower() or "document" in next_todo.content.lower()):

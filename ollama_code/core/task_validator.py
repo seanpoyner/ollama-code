@@ -61,7 +61,15 @@ class TaskValidator:
     def _validate_file_creation(self, task_content: str, result: str, files_created: List[str]) -> Tuple[ValidationResult, str]:
         """Validate file creation tasks"""
         if not files_created:
-            return ValidationResult.NEEDS_RETRY, "No files were created. Use write_file() to create the required files."
+            # Check if it's a project initialization task
+            if ("initialize" in task_content.lower() or "project" in task_content.lower()) and "directory" in task_content.lower():
+                return ValidationResult.NEEDS_RETRY, "Project initialization failed. You must create both the directory AND initial files (requirements.txt, app.py/main.py, README.md). Just creating the directory is NOT enough!"
+            
+            # Check if the AI just showed content without creating files
+            if any(marker in result for marker in ['```html', '```css', '```javascript', '```js']):
+                return ValidationResult.NEEDS_RETRY, "You showed file content but didn't create files! Use ```python blocks with write_file() instead of language-specific blocks."
+            else:
+                return ValidationResult.NEEDS_RETRY, "No files were created. You MUST use write_file() inside ```python code blocks. Example: ```python\\nwrite_file('file.txt', 'content')\\n```"
         
         # Check for placeholder content
         if files_created:
@@ -173,9 +181,20 @@ class TaskValidator:
     
     def generate_retry_context(self, task_content: str, validation_feedback: str, attempt_number: int) -> str:
         """Generate context for retry attempt"""
-        context = f"\n[RETRY ATTEMPT {attempt_number}]\n\n"
-        context += f"Previous attempt failed validation: {validation_feedback}\n\n"
-        context += "You MUST fix the issues and create working code:\n"
+        context = f"\n🔄 [RETRY ATTEMPT {attempt_number}]\n\n"
+        context += f"❌ Previous attempt failed: {validation_feedback}\n\n"
+        context += "📝 MANDATORY RULES TO PASS VALIDATION:\n"
+        context += "1. Use ```python code blocks ONLY\n"
+        context += "2. Call write_file() inside the Python blocks\n"
+        context += "3. DO NOT use ```html, ```css, or ```javascript blocks\n\n"
+        context += "✅ CORRECT EXAMPLE:\n"
+        context += "```python\n"
+        context += 'write_file("index.html", """<!DOCTYPE html><html>...</html>""")\n'
+        context += "```\n\n"
+        context += "❌ WRONG EXAMPLE:\n"
+        context += "```html\n"
+        context += "<!DOCTYPE html>...\n"
+        context += "```\n\n"
         
         # Add specific guidance based on task type
         if "backend" in task_content.lower() or "api" in task_content.lower():

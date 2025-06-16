@@ -318,22 +318,18 @@ class DocVectorStore:
             if source_type:
                 where = {"source_type": source_type}
             
-            # Add expiration filter
-            now = datetime.utcnow().isoformat()
-            if where:
-                where = {"$and": [where, {"expires_at": {"$gt": now}}]}
-            else:
-                where = {"expires_at": {"$gt": now}}
-            
-            # Perform semantic search
+            # Perform semantic search (without expiration filter in query)
+            # We'll filter expired entries after retrieval
             results = self.collection.query(
                 query_texts=[query],
-                n_results=limit,
+                n_results=limit * 2,  # Get more results to compensate for filtering
                 where=where,
                 include=["documents", "metadatas", "distances"]
             )
             
             entries = []
+            now = datetime.utcnow()
+            
             if results['ids'][0]:  # Check if we have results
                 for i, (doc_id, document, metadata, distance) in enumerate(zip(
                     results['ids'][0],
@@ -341,6 +337,11 @@ class DocVectorStore:
                     results['metadatas'][0],
                     results['distances'][0]
                 )):
+                    # Check expiration
+                    expires_at = datetime.fromisoformat(metadata['expires_at'])
+                    if expires_at < now:
+                        continue  # Skip expired entries
+                    
                     # Extract content from document
                     content = document
                     if '\n\n' in document:
@@ -355,10 +356,14 @@ class DocVectorStore:
                         source_type=metadata['source_type'],
                         tags=json.loads(metadata['tags']),
                         created_at=datetime.fromisoformat(metadata['created_at']),
-                        expires_at=datetime.fromisoformat(metadata['expires_at']),
+                        expires_at=expires_at,
                         relevance_score=1.0 - distance  # Convert distance to similarity score
                     )
                     entries.append(entry)
+                    
+                    # Stop when we have enough non-expired entries
+                    if len(entries) >= limit:
+                        break
             
             return entries
             
