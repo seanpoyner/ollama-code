@@ -263,14 +263,30 @@ class ThoughtLoop:
             if "create" in next_todo.content.lower() and "project" in next_todo.content.lower():
                 context += "🚨 PROJECT CREATION TASK - YOU MUST CREATE FILES:\n"
                 context += "When creating a project directory, you MUST also create initial files:\n\n"
-                context += "```python\n"
-                context += "# Step 1: Create the directory\n"
-                context += 'bash("mkdir -p ollama-chat")\n\n'
-                context += "# Step 2: Create initial project files\n"
-                context += 'write_file("ollama-chat/requirements.txt", """flask>=2.0.0\nollama>=0.1.0\nrequests>=2.25.0""")\n\n'
-                context += 'write_file("ollama-chat/app.py", """from flask import Flask\n\napp = Flask(__name__)\n\n@app.route("/")\ndef index():\n    return "Ollama Chat App"\\n\\nif __name__ == "__main__":\n    app.run(debug=True)""")\n\n'
-                context += 'write_file("ollama-chat/README.md", """# Ollama Chat\\n\\nA web interface for chatting with Ollama models.""")\n'
-                context += "```\n\n"
+                
+                # Node.js project guidance
+                if "node" in next_todo.content.lower() or "npm" in next_todo.content.lower():
+                    context += "For Node.js projects:\n"
+                    context += "```python\n"
+                    context += "# Step 1: Create the directory\n"
+                    context += 'bash("mkdir -p ollama-chat")\n\n'
+                    context += "# Step 2: Initialize Node.js project\n"
+                    context += 'bash("cd ollama-chat && npm init -y")\n\n'
+                    context += "# Step 3: Create initial files\n"
+                    context += 'write_file("ollama-chat/server.js", """const express = require(\'express\');\nconst app = express();\nconst port = 3000;\n\napp.get(\'/\', (req, res) => {\n  res.send(\'Hello Ollama!\');\n});\n\napp.listen(port, () => {\n  console.log(`Server running at http://localhost:${port}`);\n});""")\n\n'
+                    context += 'write_file("ollama-chat/README.md", """# Ollama Chat\\n\\nA Node.js web app for chatting with Ollama models.\\n\\n## Setup\\n\\n1. Install dependencies: `npm install`\\n2. Run server: `node server.js`""")\n'
+                    context += "```\n\n"
+                # Python project guidance
+                else:
+                    context += "For Python projects:\n"
+                    context += "```python\n"
+                    context += "# Step 1: Create the directory\n"
+                    context += 'bash("mkdir -p ollama-chat")\n\n'
+                    context += "# Step 2: Create initial project files\n"
+                    context += 'write_file("ollama-chat/requirements.txt", """flask>=2.0.0\nollama>=0.1.0\nrequests>=2.25.0""")\n\n'
+                    context += 'write_file("ollama-chat/app.py", """from flask import Flask\n\napp = Flask(__name__)\n\n@app.route("/")\ndef index():\n    return "Ollama Chat App"\\n\\nif __name__ == "__main__":\n    app.run(debug=True)""")\n\n'
+                    context += 'write_file("ollama-chat/README.md", """# Ollama Chat\\n\\nA web interface for chatting with Ollama models.""")\n'
+                    context += "```\n\n"
                 context += "IMPORTANT: Creating just the directory is NOT enough. You MUST create files!\n\n"
             
             # Check if we have sub-tasks to execute

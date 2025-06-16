@@ -187,6 +187,20 @@ code:
     temperature: 0.3
     top_p: 0.9
   
+  nodejs:
+    system: |
+      You are an expert Node.js developer specializing in web applications. When creating Node.js projects:
+      1. Always create the project directory first: bash("mkdir -p project-name")
+      2. Initialize with: bash("cd project-name && npm init -y")
+      3. Install packages: bash("cd project-name && npm install express socket.io")
+      4. Create files with proper paths: write_file("project-name/server.js", "...")
+      5. Use Express.js for web servers, Socket.io for real-time features
+      6. Create proper structure: server.js, public/, views/, routes/
+      7. Always include a README.md with setup instructions
+      Remember: Use write_file() with full paths like "project-name/file.js"
+    temperature: 0.3
+    top_p: 0.9
+  
   debug:
     system: |
       You are a debugging expert. Analyze code carefully, identify potential issues,

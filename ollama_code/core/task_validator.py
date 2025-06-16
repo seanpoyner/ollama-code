@@ -61,9 +61,23 @@ class TaskValidator:
     def _validate_file_creation(self, task_content: str, result: str, files_created: List[str]) -> Tuple[ValidationResult, str]:
         """Validate file creation tasks"""
         if not files_created:
+            # Check if it's a Node.js project initialization
+            if "node" in task_content.lower() or "npm" in task_content.lower():
+                # Check if npm init was run successfully
+                if "npm init" in result and ("package.json" in result or "Wrote to" in result):
+                    return ValidationResult.PASSED, ""
+                return ValidationResult.NEEDS_RETRY, "Node.js project initialization failed. You must create the directory and run 'npm init -y' to create package.json"
+            
             # Check if it's a project initialization task
             if ("initialize" in task_content.lower() or "project" in task_content.lower()) and "directory" in task_content.lower():
-                return ValidationResult.NEEDS_RETRY, "Project initialization failed. You must create both the directory AND initial files (requirements.txt, app.py/main.py, README.md). Just creating the directory is NOT enough!"
+                # Python projects need specific files
+                if "python" in task_content.lower() or "flask" in task_content.lower() or "django" in task_content.lower():
+                    return ValidationResult.NEEDS_RETRY, "Python project initialization failed. You must create both the directory AND initial files (requirements.txt, app.py/main.py, README.md). Just creating the directory is NOT enough!"
+                # Node.js projects need package.json
+                elif "node" in task_content.lower() or "npm" in task_content.lower():
+                    return ValidationResult.NEEDS_RETRY, "Node.js project initialization failed. Create the directory and run 'npm init -y' to create package.json"
+                else:
+                    return ValidationResult.NEEDS_RETRY, "Project initialization requires creating initial files. Create at least a README.md or configuration file."
             
             # Check if the AI just showed content without creating files
             if any(marker in result for marker in ['```html', '```css', '```javascript', '```js']):
@@ -81,6 +95,14 @@ class TaskValidator:
     
     def _validate_test_execution(self, task_content: str, result: str, files_created: List[str]) -> Tuple[ValidationResult, str]:
         """Validate test tasks"""
+        # For web app testing, we don't always need test files
+        if "web app" in task_content.lower() or "server" in task_content.lower():
+            # Check if they're actually testing the app
+            if any(term in result.lower() for term in ["running", "server", "localhost", "testing", "curl", "http"]):
+                return ValidationResult.PASSED, ""
+            return ValidationResult.NEEDS_RETRY, "Test the web app by running the server (e.g., 'node server.js') and checking if it works."
+        
+        # For other test tasks, we need test files
         if not files_created:
             return ValidationResult.NEEDS_RETRY, "No test files created. Create actual test files with working tests."
         
