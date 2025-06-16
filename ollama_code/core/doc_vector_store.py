@@ -76,15 +76,17 @@ class DocVectorStore:
     
     def __init__(self, cache_dir: Optional[Path] = None, expiry_days: int = 30,
                  embedding_model: str = "nomic-embed-text",
-                 ollama_base_url: str = "http://localhost:11434"):
+                 ollama_base_url: str = "http://localhost:11434",
+                 project_specific: bool = True):
         """
         Initialize the documentation vector store.
         
         Args:
-            cache_dir: Directory to store cache (defaults to ~/.ollama/doc_vectors/)
+            cache_dir: Directory to store cache (defaults to project/.ollama-code/doc_vectors or ~/.ollama/doc_vectors/)
             expiry_days: Number of days before cache entries expire
             embedding_model: Ollama embedding model to use
             ollama_base_url: Base URL for Ollama API
+            project_specific: Whether to use project-specific cache directory
         """
         if not CHROMADB_AVAILABLE:
             # Try to install ChromaDB automatically
@@ -112,7 +114,15 @@ class DocVectorStore:
                 )
         
         if cache_dir is None:
-            cache_dir = Path.home() / '.ollama' / 'doc_vectors'
+            if project_specific:
+                # Try to use project-specific cache
+                project_cache = Path.cwd() / '.ollama-code' / 'doc_vectors'
+                if project_cache.parent.exists():
+                    cache_dir = project_cache
+                else:
+                    cache_dir = Path.home() / '.ollama' / 'doc_vectors'
+            else:
+                cache_dir = Path.home() / '.ollama' / 'doc_vectors'
         
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -121,14 +131,19 @@ class DocVectorStore:
         
         # Initialize ChromaDB with Ollama embeddings
         try:
+            logger.info(f"Initializing DocVectorStore with embedding model: {embedding_model}")
+            logger.info(f"Ollama base URL: {ollama_base_url}")
+            
             # Create embedding function using Ollama
             self.embedding_function = embedding_functions.OllamaEmbeddingFunction(
                 url=ollama_base_url,
                 model_name=embedding_model
             )
+            logger.debug("Created Ollama embedding function")
             
             # Create persistent client
             self.client = chromadb.PersistentClient(path=str(self.cache_dir))
+            logger.debug(f"Created ChromaDB client at: {self.cache_dir}")
             
             # Get or create collection
             try:
@@ -137,7 +152,8 @@ class DocVectorStore:
                     embedding_function=self.embedding_function
                 )
                 logger.info("Loaded existing documentation collection")
-            except:
+            except Exception as e:
+                logger.debug(f"Collection not found, creating new one: {e}")
                 self.collection = self.client.create_collection(
                     name="documentation",
                     embedding_function=self.embedding_function,
@@ -149,7 +165,7 @@ class DocVectorStore:
             self._clean_expired()
             
         except Exception as e:
-            logger.error(f"Failed to initialize vector store: {e}")
+            logger.error(f"Failed to initialize vector store: {e}", exc_info=True)
             raise
     
     def _clean_expired(self):
@@ -242,8 +258,15 @@ class DocVectorStore:
             logger.info(f"Added documentation to vector store: {title}")
             
         except Exception as e:
-            logger.error(f"Failed to add to vector store: {e}")
-            raise
+            error_str = str(e)
+            if "Connection refused" in error_str or "Failed to connect" in error_str or "ConnectError" in error_str:
+                logger.error(f"Cannot add to vector store - Ollama not running: {e}")
+                logger.info("ChromaDB requires Ollama to be running for embedding generation")
+                # Don't crash, just return the entry without storing
+                return entry
+            else:
+                logger.error(f"Failed to add to vector store: {e}")
+                raise
         
         return entry
     
@@ -312,34 +335,69 @@ class DocVectorStore:
         Returns:
             List of matching DocEntry objects
         """
+        logger.debug(f"DocVectorStore.search called with query='{query}', source_type={source_type}, limit={limit}")
+        
         try:
+            # First check if collection has any documents
+            doc_count = self.collection.count()
+            logger.debug(f"Collection has {doc_count} total documents")
+            
+            if doc_count == 0:
+                logger.info("No documents in collection - returning empty results")
+                return []
+            
             # Build where clause for filtering
             where = None
             if source_type:
                 where = {"source_type": source_type}
+                logger.debug(f"Filtering by source_type: {source_type}")
+            
+            # Log embedding model status
+            logger.debug(f"Using embedding model: {self.embedding_model}")
             
             # Perform semantic search (without expiration filter in query)
             # We'll filter expired entries after retrieval
-            results = self.collection.query(
-                query_texts=[query],
-                n_results=limit * 2,  # Get more results to compensate for filtering
-                where=where,
-                include=["documents", "metadatas", "distances"]
-            )
+            logger.debug(f"Querying collection with: query_texts=['{query}'], n_results={limit * 2}, where={where}")
+            
+            try:
+                results = self.collection.query(
+                    query_texts=[query],
+                    n_results=limit * 2,  # Get more results to compensate for filtering
+                    where=where,
+                    include=["documents", "metadatas", "distances"]
+                )
+            except Exception as query_error:
+                # Check if it's an Ollama connection error
+                error_str = str(query_error)
+                if "Connection refused" in error_str or "Failed to connect" in error_str or "ConnectError" in error_str:
+                    logger.error(f"Ollama connection failed during search. Is Ollama running? Error: {query_error}")
+                    logger.info("ChromaDB requires Ollama to be running for embedding-based search")
+                    # Return empty results instead of crashing
+                    return []
+                else:
+                    # Re-raise other errors
+                    raise
+            
+            logger.debug(f"Query returned {len(results['ids'][0]) if results['ids'] and results['ids'][0] else 0} results")
             
             entries = []
             now = datetime.utcnow()
             
-            if results['ids'][0]:  # Check if we have results
+            if results['ids'] and results['ids'][0]:  # Check if we have results
+                logger.debug(f"Processing {len(results['ids'][0])} search results")
+                
                 for i, (doc_id, document, metadata, distance) in enumerate(zip(
                     results['ids'][0],
                     results['documents'][0],
                     results['metadatas'][0],
                     results['distances'][0]
                 )):
+                    logger.debug(f"Result {i}: doc_id={doc_id}, distance={distance}, title={metadata.get('title', 'N/A')}")
+                    
                     # Check expiration
                     expires_at = datetime.fromisoformat(metadata['expires_at'])
                     if expires_at < now:
+                        logger.debug(f"Skipping expired entry: {metadata.get('title', doc_id)}")
                         continue  # Skip expired entries
                     
                     # Extract content from document
@@ -364,11 +422,14 @@ class DocVectorStore:
                     # Stop when we have enough non-expired entries
                     if len(entries) >= limit:
                         break
+            else:
+                logger.debug("No results returned from collection query")
             
+            logger.info(f"Search returned {len(entries)} valid entries for query: '{query}'")
             return entries
             
         except Exception as e:
-            logger.error(f"Error searching documents: {e}")
+            logger.error(f"Error searching documents: {e}", exc_info=True)
             return []
     
     def search_by_tags(self, tags: List[str], limit: int = 10) -> List[DocEntry]:

@@ -42,6 +42,9 @@ class DocumentationAssistant:
         self.web_searcher = WebSearcher()
         self.knowledge_base = KnowledgeBase()
         
+        # Load cache stats on startup
+        self._log_cache_status()
+        
         # Pre-populate with some common Ollama documentation
         self._initialize_ollama_docs()
     
@@ -104,13 +107,15 @@ class DocumentationAssistant:
             )
     
     def get_documentation_context(self, query: str, 
-                                  source_type: Optional[str] = None) -> str:
+                                  source_type: Optional[str] = None,
+                                  auto_fetch: bool = True) -> str:
         """
         Get relevant documentation context for a query.
         
         Args:
             query: The search query
             source_type: Optional source type filter
+            auto_fetch: Whether to automatically fetch from web if not found
             
         Returns:
             Formatted documentation context string
@@ -124,12 +129,28 @@ class DocumentationAssistant:
         except Exception as e:
             logger.error(f"Documentation cache search failed: {e}")
             # Check if it's an Ollama connection issue
-            if "Connection refused" in str(e) or "Failed to connect" in str(e):
+            if "Connection refused" in str(e) or "Failed to connect" in str(e) or "ConnectError" in str(e):
                 logger.warning("ChromaDB needs Ollama running for embeddings. Documentation search disabled.")
             cached_docs = []
         
+        # If no cached docs and auto_fetch is enabled, try web search
+        if not cached_docs and auto_fetch:
+            logger.info(f"No cached documentation found. Searching web for: {query}")
+            from rich.console import Console
+            console = Console()
+            from ..utils.messages import get_message
+            console.print(get_message('app.fetching_docs_from_web'))
+            self._fetch_and_cache_documentation(query)
+            
+            # Try cache search again after fetching
+            try:
+                cached_docs = self.doc_cache.search(query, source_type=source_type, limit=5)
+            except Exception as e:
+                logger.error(f"Cache search after web fetch failed: {e}")
+                cached_docs = []
+        
         if cached_docs:
-            context_parts.append("## Cached Documentation\n")
+            context_parts.append("## Documentation\n")
             for doc in cached_docs[:3]:
                 context_parts.append(f"### {doc.title}")
                 # Extract most relevant sections
@@ -200,6 +221,130 @@ class DocumentationAssistant:
                         context_parts.append("")
         
         return "\n".join(context_parts)
+    
+    def _fetch_and_cache_documentation(self, query: str):
+        """
+        Fetch documentation from web and cache it in vector store.
+        
+        Args:
+            query: The search query
+        """
+        try:
+            # Extract key terms from query for better search
+            key_terms = self._extract_key_terms(query)
+            
+            # Search for documentation
+            for term in key_terms[:3]:  # Limit to top 3 terms
+                search_results = self.web_searcher.search(f"{term} documentation site:docs.python.org OR site:stackoverflow.com OR site:github.com")
+                
+                for result in search_results[:2]:  # Process top 2 results per term
+                    try:
+                        # Fetch the content
+                        content = self.web_searcher.fetch_content(result['url'])
+                        
+                        if content and len(content) > 100:  # Ensure meaningful content
+                            # Determine source type
+                            source_type = 'web'
+                            if 'python.org' in result['url']:
+                                source_type = 'python'
+                            elif 'stackoverflow.com' in result['url']:
+                                source_type = 'stackoverflow'
+                            elif 'github.com' in result['url']:
+                                source_type = 'github'
+                            
+                            # Add to cache
+                            self.doc_cache.add(
+                                url=result['url'],
+                                title=result.get('title', 'Documentation'),
+                                content=content,
+                                source_type=source_type,
+                                tags=key_terms
+                            )
+                            logger.info(f"Cached documentation from: {result['url']}")
+                    except Exception as e:
+                        logger.error(f"Failed to fetch/cache {result['url']}: {e}")
+                        
+        except Exception as e:
+            logger.error(f"Failed to fetch documentation for '{query}': {e}")
+    
+    def _extract_key_terms(self, query: str) -> List[str]:
+        """Extract key terms from a query for better search."""
+        # Simple extraction - can be improved with NLP
+        import re
+        
+        # Remove common words
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+                      'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during',
+                      'how', 'when', 'where', 'why', 'what', 'which', 'who', 'whom', 'this',
+                      'that', 'these', 'those', 'is', 'are', 'was', 'were', 'be', 'been',
+                      'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+                      'could', 'should', 'may', 'might', 'must', 'can', 'create', 'make',
+                      'new', 'initialize', 'implement', 'develop', 'build'}
+        
+        # Extract words
+        words = re.findall(r'\b\w+\b', query.lower())
+        
+        # Filter and prioritize
+        key_terms = []
+        for word in words:
+            if len(word) > 2 and word not in stop_words:
+                key_terms.append(word)
+        
+        # Look for specific patterns
+        # Framework names
+        frameworks = ['flask', 'django', 'fastapi', 'react', 'vue', 'angular', 'express',
+                      'rails', 'spring', 'laravel', 'symfony', 'ollama', 'chromadb']
+        for fw in frameworks:
+            if fw in query.lower():
+                key_terms.insert(0, fw)  # Prioritize framework names
+        
+        # Programming concepts
+        concepts = ['api', 'database', 'backend', 'frontend', 'gui', 'cli', 'web', 'app',
+                    'server', 'client', 'model', 'view', 'controller', 'route', 'endpoint']
+        for concept in concepts:
+            if concept in query.lower() and concept not in key_terms:
+                key_terms.append(concept)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_terms = []
+        for term in key_terms:
+            if term not in seen:
+                seen.add(term)
+                unique_terms.append(term)
+        
+        return unique_terms
+    
+    def _log_cache_status(self):
+        """Log the current cache status."""
+        try:
+            stats = self.doc_cache.get_stats()
+            if stats['total_entries'] > 0:
+                logger.info(f"Documentation cache loaded: {stats['total_entries']} entries")
+                if 'by_source_type' in stats:
+                    for source, count in stats['by_source_type'].items():
+                        logger.info(f"  - {source}: {count} entries")
+            else:
+                logger.info("Documentation cache is empty. Will fetch docs as needed.")
+        except Exception as e:
+            logger.error(f"Failed to get cache stats: {e}")
+    
+    def clear_cache(self, source_type: Optional[str] = None):
+        """
+        Clear the documentation cache.
+        
+        Args:
+            source_type: Optional source type to clear (clears all if None)
+        """
+        self.doc_cache.clear(source_type)
+        if source_type:
+            logger.info(f"Cleared {source_type} documentation from cache")
+        else:
+            logger.info("Cleared all documentation from cache")
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics."""
+        return self.doc_cache.get_stats()
     
     def get_task_context(self, task_description: str) -> TaskContext:
         """

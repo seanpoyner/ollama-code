@@ -253,6 +253,30 @@ async def interactive_loop(agent, conversation_history, todo_manager, prompts_da
                 if progress:
                     console.print(f"\n{progress}")
                 continue
+            elif user_input.lower() == '/cache':
+                # Show cache statistics
+                stats = agent.doc_assistant.get_cache_stats()
+                console.print(Panel(
+                    f"📚 Documentation Cache\n\n"
+                    f"Total entries: {stats.get('total_entries', 0)}\n"
+                    f"Storage: {stats.get('storage_path', 'N/A')}\n\n"
+                    f"By source:\n" + 
+                    "\n".join([f"  • {src}: {count}" for src, count in stats.get('by_source_type', {}).items()]),
+                    title="Cache Statistics",
+                    border_style="blue"
+                ))
+                continue
+            elif user_input.lower().startswith('/cache clear'):
+                # Clear cache
+                parts = user_input.split()
+                if len(parts) > 2:
+                    source_type = parts[2]
+                    agent.doc_assistant.clear_cache(source_type)
+                    console.print(f"✅ Cleared {source_type} documentation from cache")
+                else:
+                    agent.doc_assistant.clear_cache()
+                    console.print("✅ Cleared all documentation from cache")
+                continue
             elif user_input.lower().startswith('/todo'):
                 # Parse todo command
                 cmd_info = todo_manager.parse_todo_command(user_input)
