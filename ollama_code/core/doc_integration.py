@@ -119,7 +119,14 @@ class DocumentationAssistant:
         
         # 1. Check cache first
         logger.info(f"Searching documentation cache for: {query}")
-        cached_docs = self.doc_cache.search(query, source_type=source_type, limit=5)
+        try:
+            cached_docs = self.doc_cache.search(query, source_type=source_type, limit=5)
+        except Exception as e:
+            logger.error(f"Documentation cache search failed: {e}")
+            # Check if it's an Ollama connection issue
+            if "Connection refused" in str(e) or "Failed to connect" in str(e):
+                logger.warning("ChromaDB needs Ollama running for embeddings. Documentation search disabled.")
+            cached_docs = []
         
         if cached_docs:
             context_parts.append("## Cached Documentation\n")
@@ -135,7 +142,11 @@ class DocumentationAssistant:
         
         # 2. Check knowledge base
         logger.info(f"Searching knowledge base for: {query}")
-        knowledge_entries = self.knowledge_base.search(query, limit=5)
+        try:
+            knowledge_entries = self.knowledge_base.search(query, limit=5)
+        except Exception as e:
+            logger.error(f"Knowledge base search failed: {e}")
+            knowledge_entries = []
         
         if knowledge_entries:
             context_parts.append("## Known Patterns and Solutions\n")

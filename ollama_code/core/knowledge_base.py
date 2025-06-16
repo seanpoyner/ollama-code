@@ -303,6 +303,20 @@ class KnowledgeBase:
             potential_issues=potential_issues
         )
     
+    def _escape_fts_query(self, query: str) -> str:
+        """Escape special characters for FTS5"""
+        # For FTS5, we need to be more careful with escaping
+        # Simply quote the entire query if it contains special characters
+        special_chars = ['"', '*', '(', ')', ':', '.', ',', ';', '@', '-']
+        
+        # Check if query contains any special characters
+        if any(char in query for char in special_chars):
+            # Remove any existing quotes and wrap in quotes
+            cleaned = query.replace('"', '')
+            return f'"{cleaned}"'
+        
+        return query
+    
     def search(self, query: str, category: Optional[str] = None,
                limit: int = 10) -> List[KnowledgeEntry]:
         """
@@ -319,28 +333,64 @@ class KnowledgeBase:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             
-            if category:
-                cursor = conn.execute('''
-                    SELECT k.* FROM knowledge k
-                    JOIN knowledge_fts ON k.id = knowledge_fts.rowid
-                    WHERE knowledge_fts MATCH ? AND k.category = ?
-                    ORDER BY rank, k.confidence DESC, k.usage_count DESC
-                    LIMIT ?
-                ''', (query, category, limit))
-            else:
-                cursor = conn.execute('''
-                    SELECT k.* FROM knowledge k
-                    JOIN knowledge_fts ON k.id = knowledge_fts.rowid
-                    WHERE knowledge_fts MATCH ?
-                    ORDER BY rank, k.confidence DESC, k.usage_count DESC
-                    LIMIT ?
-                ''', (query, limit))
+            # Escape special characters in query
+            try:
+                escaped_query = self._escape_fts_query(query)
+            except Exception as e:
+                logger.warning(f"Failed to escape query '{query}': {e}. Using simple search.")
+                escaped_query = query.replace('"', '')
             
-            results = []
-            for row in cursor:
-                results.append(KnowledgeEntry.from_dict(dict(row)))
-            
-            return results
+            try:
+                if category:
+                    cursor = conn.execute('''
+                        SELECT k.* FROM knowledge k
+                        JOIN knowledge_fts ON k.id = knowledge_fts.rowid
+                        WHERE knowledge_fts MATCH ? AND k.category = ?
+                        ORDER BY rank, k.confidence DESC, k.usage_count DESC
+                        LIMIT ?
+                    ''', (escaped_query, category, limit))
+                else:
+                    cursor = conn.execute('''
+                        SELECT k.* FROM knowledge k
+                        JOIN knowledge_fts ON k.id = knowledge_fts.rowid
+                        WHERE knowledge_fts MATCH ?
+                        ORDER BY rank, k.confidence DESC, k.usage_count DESC
+                        LIMIT ?
+                    ''', (escaped_query, limit))
+                
+                results = []
+                for row in cursor:
+                    results.append(KnowledgeEntry.from_dict(dict(row)))
+                
+                return results
+                
+            except sqlite3.OperationalError as e:
+                if "fts5: syntax error" in str(e):
+                    logger.warning(f"FTS5 syntax error for query '{query}': {e}. Falling back to LIKE search.")
+                    # Fall back to simple LIKE search
+                    if category:
+                        cursor = conn.execute('''
+                            SELECT * FROM knowledge
+                            WHERE (title LIKE ? OR description LIKE ?)
+                            AND category = ?
+                            ORDER BY confidence DESC, usage_count DESC
+                            LIMIT ?
+                        ''', (f'%{query}%', f'%{query}%', category, limit))
+                    else:
+                        cursor = conn.execute('''
+                            SELECT * FROM knowledge
+                            WHERE (title LIKE ? OR description LIKE ?)
+                            ORDER BY confidence DESC, usage_count DESC
+                            LIMIT ?
+                        ''', (f'%{query}%', f'%{query}%', limit))
+                    
+                    results = []
+                    for row in cursor:
+                        results.append(KnowledgeEntry.from_dict(dict(row)))
+                    
+                    return results
+                else:
+                    raise
     
     def add_api_endpoint(self, service: str, endpoint: str, method: str,
                          parameters: Optional[Dict[str, Any]] = None,
