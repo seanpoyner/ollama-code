@@ -106,14 +106,25 @@ async def main(resume=False):
     # Extract model names properly
     try:
         available_models = []
+        embedding_models = ['nomic-embed-text', 'mxbai-embed-large', 'all-minilm']  # Common embedding models
+        
         for model in models.models:
             # Extract the model name from the Model object
             model_name = model.model if hasattr(model, 'model') else str(model)
+            
+            # Skip embedding models - they can't be used for chat
+            is_embedding = any(embed in model_name.lower() for embed in embedding_models)
+            if is_embedding:
+                logger.info(f"Skipping embedding model: {model_name}")
+                continue
+                
             available_models.append(model_name)
             
         if not available_models:
             console.print(get_message('models.no_models'))
             console.print(get_message('models.model_pull_example'))
+            console.print("\n[yellow]Note: Embedding models like 'nomic-embed-text' cannot be used for chat.[/yellow]")
+            console.print("[yellow]Pull a chat model like: ollama pull llama3 or ollama pull qwen2.5-coder[/yellow]")
             return
             
     except Exception as e:
@@ -156,6 +167,13 @@ async def main(resume=False):
     
     console.print(get_message('models.model_selected', model_name=model_name))
     logger.info(f"Selected model: {model_name}")
+    
+    # Double-check the selected model is not an embedding model
+    embedding_models = ['nomic-embed-text', 'mxbai-embed-large', 'all-minilm', 'embed']
+    if any(embed in model_name.lower() for embed in embedding_models):
+        console.print(f"\n[red]❌ Error: '{model_name}' is an embedding model and cannot be used for chat![/red]")
+        console.print("[yellow]Please restart and select a chat model like llama3 or qwen2.5-coder[/yellow]")
+        return
     
     # Initialize todo manager and conversation history
     todo_manager = TodoManager()
