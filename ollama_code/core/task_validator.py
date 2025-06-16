@@ -51,6 +51,14 @@ class TaskValidator:
             if task_type in task_lower:
                 return validator(task_content, result, files_created)
         
+        # Check for project-specific file creation
+        if "ollama-chat" in task_lower:
+            # Verify files are created in the project directory
+            if files_created:
+                wrong_location_files = [f for f in files_created if not f.startswith("ollama-chat/")]
+                if wrong_location_files:
+                    return ValidationResult.NEEDS_RETRY, f"Files created in wrong location! Use paths like 'ollama-chat/filename'. Wrong: {wrong_location_files}"
+        
         # Default validation - check if any files were created
         if any(word in task_lower for word in ['create', 'write', 'implement', 'develop']):
             if not files_created:
@@ -151,11 +159,17 @@ class TaskValidator:
     
     def _validate_gui(self, task_content: str, result: str, files_created: List[str]) -> Tuple[ValidationResult, str]:
         """Validate GUI tasks"""
+        # Check if files are in the wrong location
+        if files_created and "ollama-chat" in task_content.lower():
+            root_files = [f for f in files_created if "/" not in f]
+            if root_files:
+                return ValidationResult.NEEDS_RETRY, f"GUI files created in root directory! Use 'ollama-chat/public/index.html' not just 'index.html'. Wrong files: {root_files}"
+        
         if "html" in task_content.lower() and not any(f.endswith('.html') for f in files_created):
-            return ValidationResult.NEEDS_RETRY, "No HTML file created for GUI task. Create the HTML file."
+            return ValidationResult.NEEDS_RETRY, "No HTML file created for GUI task. Create the HTML file with path like 'ollama-chat/public/index.html'."
         
         if "javascript" in task_content.lower() and not any(f.endswith('.js') for f in files_created):
-            return ValidationResult.NEEDS_RETRY, "No JavaScript file created. Create the JS file for functionality."
+            return ValidationResult.NEEDS_RETRY, "No JavaScript file created. Create the JS file with path like 'ollama-chat/public/script.js'."
         
         return ValidationResult.PASSED, ""
     

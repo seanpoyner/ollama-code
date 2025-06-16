@@ -229,6 +229,15 @@ class ThoughtLoop:
             
             # Create focused context for this specific task
             context = f"Please complete the following task:\n\n{next_todo.content}\n\n"
+            
+            # Add critical project context reminder
+            if "ollama-chat" in next_todo.content.lower() or any(prev in str(previous_results) for prev in ["ollama-chat", "project", "directory"]):
+                context += "🚨 PROJECT CONTEXT REMINDER:\n"
+                context += "You are working on a project in the 'ollama-chat' directory.\n"
+                context += "ALL files must be created with paths like 'ollama-chat/filename.js'\n"
+                context += "Example: write_file('ollama-chat/server.js', '...')\n"
+                context += "Example: write_file('ollama-chat/public/index.html', '...')\n"
+                context += "NEVER create files in the root directory!\n\n"
             if doc_context:
                 context += doc_context
             if previous_results:
@@ -244,12 +253,14 @@ class ThoughtLoop:
             
             context += "✅ CORRECT APPROACH (YOU MUST DO THIS):\n"
             context += "```python\n"
-            context += "# Create HTML file\n"
-            context += 'write_file("index.html", """<!DOCTYPE html>\n<html>\n<body>\n  <h1>Hello</h1>\n</body>\n</html>""")\n'
+            context += "# IMPORTANT: Always use the full path when creating files in a project!\n"
+            context += "# If working in 'ollama-chat' directory, use paths like:\n"
+            context += 'write_file("ollama-chat/index.html", """<!DOCTYPE html>\n<html>\n<body>\n  <h1>Hello</h1>\n</body>\n</html>""")\n'
             context += "```\n\n"
             context += "```python\n"
-            context += "# Create CSS file\n"
-            context += 'write_file("styles.css", """body { margin: 0; }""")\n'
+            context += "# Create files in subdirectories:\n"
+            context += 'write_file("ollama-chat/public/styles.css", """body { margin: 0; }""")\n'
+            context += 'write_file("ollama-chat/src/app.js", """console.log(\'App started\');""")\n'
             context += "```\n\n"
             
             context += "❌ WRONG APPROACH (NEVER DO THIS):\n"

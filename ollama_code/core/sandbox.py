@@ -25,6 +25,7 @@ class CodeSandbox:
         self.use_docker = False
         self.write_confirmation_callback = write_confirmation_callback
         self.doc_request_callback = doc_request_callback
+        self.current_project_dir = None  # Track current project directory
         
         if DOCKER_AVAILABLE and self.use_docker:
             try:
