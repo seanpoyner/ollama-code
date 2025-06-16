@@ -1,0 +1,17 @@
+{
+  "os_type": "wsl",
+  "os_name": "Linux",
+  "os_version": "#1 SMP Tue Nov 5 00:21:55 UTC 2024",
+  "os_release": "5.15.167.4-microsoft-standard-WSL2",
+  "machine": "x86_64",
+  "processor": "x86_64",
+  "python_version": "3.12.3",
+  "shell": "bash",
+  "shell_command": [
+    "/bin/bash",
+    "-c"
+  ],
+  "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "home_directory": "/home/sean",
+  "current_directory": "/mnt/c/Users/seanp/.ollama/ollama-code"
+}

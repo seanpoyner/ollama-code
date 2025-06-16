@@ -14,11 +14,12 @@ class DependencyManager:
     """Manages automatic installation of dependencies"""
     
     # Core dependencies that must be installed
+    # Format: 'import_name': ('pip_name', 'version_spec')
     REQUIRED_PACKAGES = {
-        'ollama': '>=0.1.0',
-        'rich': '>=13.0.0',
-        'requests': '>=2.25.0',
-        'pyyaml': '>=5.4.0',
+        'ollama': ('ollama', '>=0.1.0'),
+        'rich': ('rich', '>=13.0.0'),
+        'requests': ('requests', '>=2.25.0'),
+        'yaml': ('pyyaml', '>=5.4.0'),  # PyYAML imports as 'yaml'
     }
     
     # Optional packages with fallbacks
@@ -46,7 +47,7 @@ class DependencyManager:
             return None
     
     @staticmethod
-    def install_package(package_name: str, version_spec: str = '') -> bool:
+    def install_package(package_name: str, version_spec: str = '', verify_import: bool = True) -> bool:
         """Install a package using pip"""
         try:
             package_spec = f"{package_name}{version_spec}"
@@ -58,17 +59,20 @@ class DependencyManager:
                 stderr=subprocess.PIPE
             )
             
-            # Verify installation
-            importlib.invalidate_caches()
-            importlib.import_module(package_name)
+            if verify_import:
+                # Only verify if package name matches import name
+                importlib.invalidate_caches()
+                try:
+                    importlib.import_module(package_name)
+                except ImportError:
+                    # Package might have different import name (like pyyaml -> yaml)
+                    pass
+            
             logger.info(f"Successfully installed {package_spec}")
             return True
             
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to install {package_name}: {e}")
-            return False
-        except ImportError:
-            logger.error(f"Package {package_name} installed but cannot be imported")
             return False
         except Exception as e:
             logger.error(f"Unexpected error installing {package_name}: {e}")
@@ -88,11 +92,21 @@ class DependencyManager:
         missing_packages = []
         
         # Check required packages
-        for package, version_spec in cls.REQUIRED_PACKAGES.items():
-            if not cls.check_package(package):
-                missing_packages.append(f"{package}{version_spec}")
+        for import_name, package_info in cls.REQUIRED_PACKAGES.items():
+            if isinstance(package_info, tuple):
+                pip_name, version_spec = package_info
+            else:
+                # For backward compatibility
+                pip_name = import_name
+                version_spec = package_info
+            
+            if not cls.check_package(import_name):
+                missing_packages.append(f"{pip_name}{version_spec}")
                 if auto_install:
-                    if not cls.install_package(package, version_spec):
+                    if not cls.install_package(pip_name, version_spec):
+                        return False, missing_packages
+                    # Verify the import works with the correct import name
+                    if not cls.check_package(import_name):
                         return False, missing_packages
         
         # If any required packages are missing and we couldn't install them
