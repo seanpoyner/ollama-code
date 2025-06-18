@@ -1048,18 +1048,16 @@ class OllamaCodeAgent:
                 self.todo_manager.clear()
                 console.print("\n🧹 [dim]Todo list cleared[/dim]")
                 
+                # Clear task validator's partial progress tracking
+                self.task_validator.partial_progress.clear()
+                
                 console.print("\n💬 [cyan]Ready for your next command![/cyan]")
                 console.print("=" * 50 + "\n")
     
     def _is_analysis_task(self, input_text: str) -> bool:
         """Check if the current task is an analysis/information gathering task"""
-        analysis_keywords = [
-            'analyze', 'gather', 'information', 'examine', 'explore',
-            'understand', 'review', 'assess', 'evaluate', 'study',
-            'investigate', 'inspect', 'survey', 'scan'
-        ]
-        input_lower = input_text.lower()
-        return any(keyword in input_lower for keyword in analysis_keywords)
+        # Use the expanded list from task validator for consistency
+        return self.task_validator._is_analysis_task(input_text.lower())
     
     def _extract_task_summary(self, result: str) -> str:
         """Extract a summary of what was accomplished from the AI response"""

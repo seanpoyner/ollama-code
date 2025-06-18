@@ -25,6 +25,25 @@ class TaskValidator:
             'gui': self._validate_gui,
             'function': self._validate_function
         }
+        
+        # Track partial progress across validation attempts
+        self.partial_progress = {}
+        
+        # Expanded analysis keywords
+        self.analysis_keywords = [
+            'analyze', 'gather', 'information', 'examine', 'explore',
+            'understand', 'review', 'assess', 'evaluate', 'study',
+            'investigate', 'inspect', 'survey', 'scan', 'research',
+            'document', 'thoroughly', 'check', 'verify', 'identify',
+            'determine', 'find', 'discover', 'detect', 'observe'
+        ]
+        
+        # Valid first steps for any task
+        self.valid_first_steps = [
+            'list_files', 'read_file', 'bash', 'search_docs', 'get_api_info',
+            'import os', 'print(', 'files =', '# Check', '# Analyze',
+            'ls', 'pwd', 'cd', 'mkdir', 'find', 'grep'
+        ]
     
     def validate_task_completion(self, task_content: str, result: str, files_created: List[str] = None) -> Tuple[ValidationResult, str]:
         """
@@ -33,6 +52,22 @@ class TaskValidator:
         """
         task_lower = task_content.lower()
         files_created = files_created or []
+        task_id = hash(task_content)  # Simple task identifier
+        
+        # Track partial progress
+        if task_id not in self.partial_progress:
+            self.partial_progress[task_id] = {
+                'steps_completed': [],
+                'meaningful_actions': 0,
+                'attempt_count': 0
+            }
+        
+        progress = self.partial_progress[task_id]
+        progress['attempt_count'] += 1
+        
+        # Check for meaningful progress indicators
+        if self._has_meaningful_progress(result, progress):
+            progress['meaningful_actions'] += 1
         
         # Special handling for directory creation tasks
         if "create" in task_lower and "directory" in task_lower and "mkdir" in result:
@@ -60,11 +95,29 @@ class TaskValidator:
                 elif "pip install" in result:
                     return ValidationResult.PASSED, ""
         
-        # For analysis/exploration tasks, don't require file creation
-        if any(word in task_lower for word in ["analyze", "explore", "gather", "document", "thoroughly"]):
-            # Just check if some exploration was done
-            if "read_file" in result or "bash" in result or "search_docs" in result or "get_api_info" in result:
+        # For analysis/exploration tasks, be more lenient
+        if self._is_analysis_task(task_lower):
+            # Check if meaningful analysis was performed
+            analysis_actions = [
+                "read_file" in result,
+                "bash" in result,
+                "search_docs" in result,
+                "get_api_info" in result,
+                "list_files" in result,
+                any(step in result for step in self.valid_first_steps),
+                "===" in result,  # Analysis output format
+                "found" in result.lower(),
+                "identified" in result.lower(),
+                "discovered" in result.lower(),
+                progress['meaningful_actions'] > 0
+            ]
+            
+            if any(analysis_actions):
                 return ValidationResult.PASSED, ""
+            
+            # Allow partial progress for analysis tasks
+            if progress['attempt_count'] == 1:
+                return ValidationResult.NEEDS_RETRY, "Please complete the analysis by examining the relevant files or information."
         
         # Determine task type and validate
         for task_type, validator in self.validation_rules.items():
@@ -146,6 +199,9 @@ class TaskValidator:
     
     def _validate_implementation(self, task_content: str, result: str, files_created: List[str]) -> Tuple[ValidationResult, str]:
         """Validate implementation tasks"""
+        task_id = hash(task_content)
+        progress = self.partial_progress.get(task_id, {'meaningful_actions': 0, 'attempt_count': 1})
+        
         # Check if this is a package installation task
         if "install" in task_content.lower() and ("npm" in task_content.lower() or "pip" in task_content.lower()):
             # For package installation, check for successful installation messages
@@ -163,8 +219,27 @@ class TaskValidator:
             if "bash(" in result:
                 return ValidationResult.PASSED, ""
         
+        # Check if this is a multi-step implementation
+        is_multi_step = any(indicator in task_content.lower() for indicator in [
+            'and', 'then', 'with', 'including', 'also', 'plus',
+            'frontend', 'backend', 'api', 'database', 'test'
+        ])
+        
+        # For multi-step tasks, allow partial progress
+        if is_multi_step and progress['attempt_count'] == 1:
+            # Check if initial analysis was done
+            if any(step in result for step in self.valid_first_steps):
+                return ValidationResult.NEEDS_RETRY, "Good start! Now implement the actual functionality based on your analysis."
+            
+            # Check if some files were created but not all
+            if files_created and len(files_created) < 3:  # Arbitrary threshold
+                return ValidationResult.NEEDS_RETRY, "Partial implementation detected. Continue implementing the remaining components."
+        
         # For other implementation tasks, require files
         if not files_created:
+            # Allow first step to be analysis
+            if progress['attempt_count'] == 1 and any(step in result for step in self.valid_first_steps):
+                return ValidationResult.NEEDS_RETRY, "Analysis complete. Now create the implementation files."
             return ValidationResult.NEEDS_RETRY, "No implementation files created. Create the actual implementation."
         
         # Check for errors in execution
@@ -256,26 +331,116 @@ class TaskValidator:
         
         return "Unknown error"
     
+    def _is_analysis_task(self, task_content: str) -> bool:
+        """Check if a task is primarily analysis/information gathering"""
+        return any(keyword in task_content for keyword in self.analysis_keywords)
+    
+    def _has_meaningful_progress(self, result: str, progress: Dict) -> bool:
+        """Check if the result shows meaningful progress towards task completion"""
+        meaningful_indicators = [
+            # File operations
+            'write_file(' in result,
+            'created file:' in result.lower(),
+            'mkdir' in result and 'successfully' in result.lower(),
+            
+            # Code execution
+            'bash(' in result,
+            'subprocess.run' in result,
+            'execute_code' in result,
+            
+            # Analysis actions
+            'read_file(' in result,
+            'list_files(' in result,
+            'search_docs(' in result,
+            'get_api_info(' in result,
+            
+            # Implementation indicators
+            'def ' in result,
+            'function ' in result,
+            'class ' in result,
+            'import ' in result,
+            
+            # Package management
+            'npm install' in result,
+            'pip install' in result,
+            'requirements.txt' in result,
+            'package.json' in result,
+            
+            # Testing
+            'test' in result.lower() and ('passed' in result.lower() or 'ok' in result.lower()),
+            'pytest' in result,
+            'unittest' in result,
+            
+            # API/Backend
+            'route' in result,
+            'endpoint' in result,
+            'server' in result.lower(),
+            'flask' in result.lower(),
+            'express' in result.lower()
+        ]
+        
+        # Check if this action hasn't been done before
+        current_action = None
+        for indicator in meaningful_indicators:
+            if indicator:
+                current_action = indicator
+                break
+        
+        if current_action and current_action not in progress.get('steps_completed', []):
+            progress['steps_completed'].append(current_action)
+            return True
+        
+        return False
+    
     def generate_retry_context(self, task_content: str, validation_feedback: str, attempt_number: int) -> str:
         """Generate context for retry attempt"""
+        task_id = hash(task_content)
+        progress = self.partial_progress.get(task_id, {'steps_completed': [], 'meaningful_actions': 0})
+        
         context = f"\n🔄 [RETRY ATTEMPT {attempt_number}]\n\n"
-        context += f"❌ Previous attempt failed: {validation_feedback}\n\n"
-        context += "🚨 STOP EXPLAINING AND START DOING!\n\n"
-        context += "EXECUTE THIS CODE NOW:\n"
-        context += "```python\n"
-        context += "# Step 1: Check existing files\n"
-        context += "import os\n"
-        context += "files = list_files()\n"
-        context += "print(files)\n"
-        context += "```\n\n"
-        context += "```python\n"
-        context += "# Step 2: Implement the actual task\n"
+        context += f"❌ Previous attempt: {validation_feedback}\n\n"
         
-        context += "# Create/modify the required files for THIS SPECIFIC TASK\n"
-        context += "# Don't just show examples - IMPLEMENT THE ACTUAL SOLUTION!\n"
+        # If progress was made, acknowledge it
+        if progress['steps_completed']:
+            context += f"✅ Progress made: {', '.join(progress['steps_completed'][:3])}\n"
+            context += "Continue from where you left off.\n\n"
         
-        context += "```\n\n"
-        context += "STOP READING THIS AND EXECUTE THE CODE ABOVE!\n\n"
+        # More encouraging tone for partial progress
+        if progress['meaningful_actions'] > 0:
+            context += "You're on the right track! Complete the remaining steps.\n\n"
+        else:
+            context += "🚨 STOP EXPLAINING AND START DOING!\n\n"
+        
+        # Provide more specific guidance based on what's missing
+        if "no files" in validation_feedback.lower():
+            context += "EXECUTE THIS CODE NOW:\n"
+            context += "```python\n"
+            context += "# Create the required files\n"
+            context += "# Example: write_file('filename.py', 'content')\n"
+            context += "```\n\n"
+        elif "partial implementation" in validation_feedback.lower():
+            context += "Continue implementing the remaining components:\n"
+            context += "```python\n"
+            context += "# Check what's already done\n"
+            context += "files = list_files()\n"
+            context += "print(files)\n"
+            context += "# Then implement the missing parts\n"
+            context += "```\n\n"
+        else:
+            context += "EXECUTE THIS CODE NOW:\n"
+            context += "```python\n"
+            context += "# Step 1: Check existing files\n"
+            context += "import os\n"
+            context += "files = list_files()\n"
+            context += "print(files)\n"
+            context += "```\n\n"
+            context += "```python\n"
+            context += "# Step 2: Implement the actual task\n"
+            context += "# Create/modify the required files for THIS SPECIFIC TASK\n"
+            context += "# Don't just show examples - IMPLEMENT THE ACTUAL SOLUTION!\n"
+            context += "```\n\n"
+        
+        context += "Remember: Each code block runs in isolation. Use multiple blocks if needed.\n\n"
         
         # Add specific guidance based on task type
         if "backend" in task_content.lower() or "api" in task_content.lower():
