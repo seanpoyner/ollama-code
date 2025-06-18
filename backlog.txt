@@ -14,3 +14,7 @@
 ## Remaining Issues
 - implement mcp servers
 - implement github integrations
+
+## In Progress
+- ✅ Retry context improvements - AI now skips analysis when already done
+- ✅ Continuation mode - Detects completed analysis and jumps to implementation

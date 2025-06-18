@@ -26,6 +26,7 @@ class ThoughtLoop:
         self.task_results = {}  # Store results from completed tasks
         self.current_subtask_manager = None  # Current sub-task manager
         self.doc_assistant = doc_assistant  # Documentation assistant
+        self.task_attempts = {}  # Track retry attempts per task
     
     def process_request(self, request: str) -> Tuple[List[Dict], str]:
         """
@@ -180,6 +181,11 @@ class ThoughtLoop:
         """Get context for the next task to work on"""
         next_todo = self.todo_manager.get_next_todo()
         if next_todo:
+            # Track task attempts
+            if next_todo.id not in self.task_attempts:
+                self.task_attempts[next_todo.id] = 0
+            self.task_attempts[next_todo.id] += 1
+            
             # Mark as in progress
             self.todo_manager.update_todo(next_todo.id, status=TodoStatus.IN_PROGRESS.value)
             
@@ -248,18 +254,31 @@ class ThoughtLoop:
             context += "DO NOT just describe what should be done!\n"
             context += "DO NOT show file contents without write_file() or edit_file()!\n\n"
             
-            context += "EXECUTE THIS PATTERN:\n"
-            context += "```python\n"
-            context += "# 1. Check what exists\n"
-            context += "files = list_files()\n"
-            context += "print(files)\n"
-            context += "```\n\n"
-            context += "```python\n"
-            context += "# 2. Create/modify files based on the task\n"
-            context += "# Use write_file() for new files\n"
-            context += "# Use edit_file() for small changes to existing files\n"
-            context += "# Use read_file() + write_file() for major changes\n"
-            context += "```\n\n"
+            # Detect if this is a retry and analysis was already done
+            is_retry = self.task_attempts.get(next_todo.id, 0) > 1
+            has_previous_analysis = previous_results and any(indicator in previous_results.lower() 
+                for indicator in ['files:', 'current files:', 'found', 'list_files()'])
+            
+            if is_retry and has_previous_analysis:
+                context += "SKIP ANALYSIS - GO DIRECTLY TO IMPLEMENTATION:\n"
+                context += "```python\n"
+                context += "# Analysis already done. CREATE FILES NOW!\n"
+                context += "# Use write_file() for new files\n"
+                context += "# Use edit_file() for small changes to existing files\n"
+                context += "```\n\n"
+            else:
+                context += "EXECUTE THIS PATTERN:\n"
+                context += "```python\n"
+                context += "# 1. Check what exists\n"
+                context += "files = list_files()\n"
+                context += "print(files)\n"
+                context += "```\n\n"
+                context += "```python\n"
+                context += "# 2. Create/modify files based on the task\n"
+                context += "# Use write_file() for new files\n"
+                context += "# Use edit_file() for small changes to existing files\n"
+                context += "# Use read_file() + write_file() for major changes\n"
+                context += "```\n\n"
             
             # Add specific guidance for project creation tasks
             if "create" in next_todo.content.lower() and "project" in next_todo.content.lower():
@@ -318,24 +337,31 @@ class ThoughtLoop:
             
             # Add specific guidance for information gathering tasks
             if "gather" in next_todo.content.lower() or "analyze" in next_todo.content.lower() or "document" in next_todo.content.lower():
-                context += "\n[ANALYSIS TASK - EXECUTE THESE COMMANDS]\n\n"
-                context += "Execute each code block below one at a time:\n\n"
-                context += "```python\n"
-                context += "# Read project context\n"
-                context += "content = read_file('OLLAMA.md')\n"
-                context += "print(content[:1000])\n"
-                context += "```\n\n"
-                context += "```python\n"
-                context += "# List project files\n"
-                context += "files = list_files()\n"
-                context += "print(files)\n"
-                context += "```\n\n"
-                context += "```python\n"
-                context += "# Find Python files\n"
-                context += "result = bash('find . -name \\\"*.py\\\" | head -20')\n"
-                context += "print(result)\n"
-                context += "```\n\n"
-                context += "After executing, summarize what you found.\n"
+                # Check if analysis was already done in previous results
+                if previous_results and any(indicator in previous_results.lower() for indicator in 
+                    ['files:', 'found:', 'current files:', 'project structure:', 'analysis complete']):
+                    context += "\n[ANALYSIS ALREADY COMPLETE - SKIP TO IMPLEMENTATION]\n\n"
+                    context += "Previous analysis found the necessary information.\n"
+                    context += "Now IMPLEMENT based on what was discovered.\n\n"
+                else:
+                    context += "\n[ANALYSIS TASK - EXECUTE THESE COMMANDS]\n\n"
+                    context += "Execute each code block below one at a time:\n\n"
+                    context += "```python\n"
+                    context += "# Read project context\n"
+                    context += "content = read_file('OLLAMA.md')\n"
+                    context += "print(content[:1000])\n"
+                    context += "```\n\n"
+                    context += "```python\n"
+                    context += "# List project files\n"
+                    context += "files = list_files()\n"
+                    context += "print(files)\n"
+                    context += "```\n\n"
+                    context += "```python\n"
+                    context += "# Find Python files\n"
+                    context += "result = bash('find . -name \\\"*.py\\\" | head -20')\n"
+                    context += "print(result)\n"
+                    context += "```\n\n"
+                    context += "After executing, summarize what you found.\n"
             
             # Add specific guidance for file creation tasks
             elif any(word in next_todo.content.lower() for word in ['create', 'write', 'develop', 'implement', 'script', 'test', 'endpoint', 'backend', 'service', 'websocket', 'socket']):

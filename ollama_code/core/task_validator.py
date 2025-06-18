@@ -395,19 +395,33 @@ class TaskValidator:
         context = f"\n🔄 [RETRY ATTEMPT {attempt_number}]\n\n"
         context += f"❌ Previous attempt: {validation_feedback}\n\n"
         
+        # Check if analysis phase is complete
+        analysis_complete = any(step in ['file listing', 'file reading', 'documentation search'] 
+                              for step in progress.get('steps_completed', []))
+        
         # If progress was made, acknowledge it
         if progress['steps_completed']:
             context += f"✅ Progress made: {', '.join(progress['steps_completed'][:3])}\n"
-            context += "Continue from where you left off.\n\n"
+            
+            # If analysis is done, skip directly to implementation
+            if analysis_complete:
+                context += "✅ Analysis complete. Now CREATE THE FILES!\n\n"
+                context += self._get_implementation_guidance(task_content, progress)
+            else:
+                context += "Continue from where you left off.\n\n"
         
         # More encouraging tone for partial progress
-        if progress['meaningful_actions'] > 0:
+        elif progress['meaningful_actions'] > 0:
             context += "You're on the right track! Complete the remaining steps.\n\n"
         else:
             context += "🚨 STOP EXPLAINING AND START DOING!\n\n"
         
         # Provide more specific guidance based on what's missing
-        if "no files" in validation_feedback.lower():
+        if "no files" in validation_feedback.lower() and analysis_complete:
+            # Skip analysis, go straight to implementation
+            context += "Analysis is done. CREATE FILES NOW:\n"
+            context += self._get_implementation_guidance(task_content, progress)
+        elif "no files" in validation_feedback.lower():
             context += "EXECUTE THIS CODE NOW:\n"
             context += "```python\n"
             context += "# Create the required files\n"
@@ -421,6 +435,9 @@ class TaskValidator:
             context += "print(files)\n"
             context += "# Then implement the missing parts\n"
             context += "```\n\n"
+        elif analysis_complete:
+            # Analysis done, jump to implementation
+            context += self._get_implementation_guidance(task_content, progress)
         else:
             context += "EXECUTE THIS CODE NOW:\n"
             context += "```python\n"
@@ -447,6 +464,163 @@ class TaskValidator:
         
         context += "\nDO NOT use placeholder code. Create actual working implementation!\n"
         return context
+    
+    def _get_implementation_guidance(self, task_content: str, progress: Dict) -> str:
+        """Generate specific implementation guidance based on task type and progress"""
+        task_lower = task_content.lower()
+        
+        # Determine task type and provide specific code
+        if "chat" in task_lower and "webapp" in task_lower:
+            return """EXECUTE THIS CODE NOW to create the chat webapp:
+
+```python
+# Create the main server file
+write_file("server.js", \"\"\"const express = require('express');
+const app = express();
+const http = require('http').createServer(app);
+const port = 3000;
+
+app.use(express.static('public'));
+app.use(express.json());
+
+// Serve the main page
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/public/index.html');
+});
+
+// Chat endpoint that connects to Ollama
+app.post('/api/chat', async (req, res) => {
+    try {
+        const { message } = req.body;
+        
+        // Call Ollama API
+        const response = await fetch('http://localhost:11434/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'llama2',
+                messages: [{ role: 'user', content: message }],
+                stream: false
+            })
+        });
+        
+        const data = await response.json();
+        res.json({ response: data.message.content });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to connect to Ollama' });
+    }
+});
+
+http.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+});\"\"\")
+```
+
+```python
+# Create the public directory and HTML file
+import os
+os.makedirs('public', exist_ok=True)
+
+write_file("public/index.html", \"\"\"<!DOCTYPE html>
+<html>
+<head>
+    <title>Ollama Chat</title>
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
+        #chat-box { border: 1px solid #ccc; height: 400px; overflow-y: auto; padding: 10px; margin-bottom: 10px; }
+        .message { margin: 10px 0; }
+        .user { color: blue; }
+        .assistant { color: green; }
+        #input-area { display: flex; gap: 10px; }
+        #message-input { flex: 1; padding: 10px; }
+        button { padding: 10px 20px; }
+    </style>
+</head>
+<body>
+    <h1>Chat with Ollama</h1>
+    <div id="chat-box"></div>
+    <div id="input-area">
+        <input type="text" id="message-input" placeholder="Type your message..." onkeypress="if(event.key==='Enter')sendMessage()">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>\"\"\")
+```
+
+```python
+# Create the JavaScript file
+write_file("public/script.js", \"\"\"async function sendMessage() {
+    const input = document.getElementById('message-input');
+    const message = input.value.trim();
+    if (!message) return;
+    
+    // Add user message to chat
+    addMessage('You', message, 'user');
+    input.value = '';
+    
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        
+        const data = await response.json();
+        if (data.response) {
+            addMessage('Assistant', data.response, 'assistant');
+        } else {
+            addMessage('Error', data.error || 'Failed to get response', 'error');
+        }
+    } catch (error) {
+        addMessage('Error', 'Network error: ' + error.message, 'error');
+    }
+}
+
+function addMessage(sender, text, className) {
+    const chatBox = document.getElementById('chat-box');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ' + className;
+    messageDiv.innerHTML = '<b>' + sender + ':</b> ' + text;
+    chatBox.appendChild(messageDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}\"\"\")
+```
+"""
+        elif "create" in task_lower and "file" in task_lower:
+            # Extract filename if mentioned
+            filename = "example.py"  # default
+            if ".js" in task_lower:
+                filename = "script.js"
+            elif ".html" in task_lower:
+                filename = "index.html"
+            elif ".py" in task_lower:
+                filename = "app.py"
+            
+            return f"""EXECUTE THIS CODE NOW:
+
+```python
+# Create the file directly
+write_file("{filename}", \"\"\"# Your implementation here
+# Replace this with actual code for: {task_content}
+\"\"\")
+```
+"""
+        else:
+            # Generic implementation guidance
+            return """EXECUTE THIS CODE NOW:
+
+```python
+# Based on your analysis, create the necessary files
+# Use write_file() for new files
+# Use edit_file() for modifying existing files
+
+# Example:
+write_file("implementation.py", \"\"\"# Implementation for: """ + task_content + """
+# Add your actual code here
+\"\"\")
+```
+"""
     
     def _get_backend_retry_guidance(self) -> str:
         """Get retry guidance for backend tasks"""
