@@ -82,7 +82,7 @@ class TaskValidator:
                 if "packages are looking for funding" in result or "added" in result or "audited" in result:
                     return ValidationResult.PASSED, ""
                 elif "npm err!" in result.lower():
-                    return ValidationResult.NEEDS_RETRY, "npm install failed. Fix errors and retry with: bash('cd ollama-chat && npm install')"
+                    return ValidationResult.NEEDS_RETRY, "npm install failed. Fix errors and retry in the correct directory."
                 elif "npm install" in result:
                     # Command was executed, assume success if no errors
                     return ValidationResult.PASSED, ""
@@ -125,12 +125,7 @@ class TaskValidator:
                 return validator(task_content, result, files_created)
         
         # Check for project-specific file creation
-        if "ollama-chat" in task_lower:
-            # Verify files are created in the project directory
-            if files_created:
-                wrong_location_files = [f for f in files_created if not f.startswith("ollama-chat/")]
-                if wrong_location_files:
-                    return ValidationResult.NEEDS_RETRY, f"Files created in wrong location! Use paths like 'ollama-chat/filename'. Wrong: {wrong_location_files}"
+        # This section removed - project names should not be hard-coded
         
         # Default validation - check if any files were created
         if any(word in task_lower for word in ['create', 'write', 'implement', 'develop']):
@@ -275,17 +270,11 @@ class TaskValidator:
     
     def _validate_gui(self, task_content: str, result: str, files_created: List[str]) -> Tuple[ValidationResult, str]:
         """Validate GUI tasks"""
-        # Check if files are in the wrong location
-        if files_created and "ollama-chat" in task_content.lower():
-            root_files = [f for f in files_created if "/" not in f]
-            if root_files:
-                return ValidationResult.NEEDS_RETRY, f"GUI files created in root directory! Use 'ollama-chat/public/index.html' not just 'index.html'. Wrong files: {root_files}"
-        
         if "html" in task_content.lower() and not any(f.endswith('.html') for f in files_created):
-            return ValidationResult.NEEDS_RETRY, "No HTML file created for GUI task. Create the HTML file with path like 'ollama-chat/public/index.html'."
+            return ValidationResult.NEEDS_RETRY, "No HTML file created for GUI task."
         
         if "javascript" in task_content.lower() and not any(f.endswith('.js') for f in files_created):
-            return ValidationResult.NEEDS_RETRY, "No JavaScript file created. Create the JS file with path like 'ollama-chat/public/script.js'."
+            return ValidationResult.NEEDS_RETRY, "No JavaScript file created."
         
         return ValidationResult.PASSED, ""
     
@@ -466,159 +455,14 @@ class TaskValidator:
         return context
     
     def _get_implementation_guidance(self, task_content: str, progress: Dict) -> str:
-        """Generate specific implementation guidance based on task type and progress"""
-        task_lower = task_content.lower()
-        
-        # Determine task type and provide specific code
-        if "chat" in task_lower and "webapp" in task_lower:
-            return """EXECUTE THIS CODE NOW to create the chat webapp:
+        """Generate generic implementation guidance based on progress"""
+        return """EXECUTE THIS CODE NOW:
 
 ```python
-# Create the main server file
-write_file("server.js", \"\"\"const express = require('express');
-const app = express();
-const http = require('http').createServer(app);
-const port = 3000;
-
-app.use(express.static('public'));
-app.use(express.json());
-
-// Serve the main page
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/public/index.html');
-});
-
-// Chat endpoint that connects to Ollama
-app.post('/api/chat', async (req, res) => {
-    try {
-        const { message } = req.body;
-        
-        // Call Ollama API
-        const response = await fetch('http://localhost:11434/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'llama2',
-                messages: [{ role: 'user', content: message }],
-                stream: false
-            })
-        });
-        
-        const data = await response.json();
-        res.json({ response: data.message.content });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to connect to Ollama' });
-    }
-});
-
-http.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-});\"\"\")
-```
-
-```python
-# Create the public directory and HTML file
-import os
-os.makedirs('public', exist_ok=True)
-
-write_file("public/index.html", \"\"\"<!DOCTYPE html>
-<html>
-<head>
-    <title>Ollama Chat</title>
-    <style>
-        body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
-        #chat-box { border: 1px solid #ccc; height: 400px; overflow-y: auto; padding: 10px; margin-bottom: 10px; }
-        .message { margin: 10px 0; }
-        .user { color: blue; }
-        .assistant { color: green; }
-        #input-area { display: flex; gap: 10px; }
-        #message-input { flex: 1; padding: 10px; }
-        button { padding: 10px 20px; }
-    </style>
-</head>
-<body>
-    <h1>Chat with Ollama</h1>
-    <div id="chat-box"></div>
-    <div id="input-area">
-        <input type="text" id="message-input" placeholder="Type your message..." onkeypress="if(event.key==='Enter')sendMessage()">
-        <button onclick="sendMessage()">Send</button>
-    </div>
-    <script src="script.js"></script>
-</body>
-</html>\"\"\")
-```
-
-```python
-# Create the JavaScript file
-write_file("public/script.js", \"\"\"async function sendMessage() {
-    const input = document.getElementById('message-input');
-    const message = input.value.trim();
-    if (!message) return;
-    
-    // Add user message to chat
-    addMessage('You', message, 'user');
-    input.value = '';
-    
-    try {
-        const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message })
-        });
-        
-        const data = await response.json();
-        if (data.response) {
-            addMessage('Assistant', data.response, 'assistant');
-        } else {
-            addMessage('Error', data.error || 'Failed to get response', 'error');
-        }
-    } catch (error) {
-        addMessage('Error', 'Network error: ' + error.message, 'error');
-    }
-}
-
-function addMessage(sender, text, className) {
-    const chatBox = document.getElementById('chat-box');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message ' + className;
-    messageDiv.innerHTML = '<b>' + sender + ':</b> ' + text;
-    chatBox.appendChild(messageDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
-}\"\"\")
-```
-"""
-        elif "create" in task_lower and "file" in task_lower:
-            # Extract filename if mentioned
-            filename = "example.py"  # default
-            if ".js" in task_lower:
-                filename = "script.js"
-            elif ".html" in task_lower:
-                filename = "index.html"
-            elif ".py" in task_lower:
-                filename = "app.py"
-            
-            return f"""EXECUTE THIS CODE NOW:
-
-```python
-# Create the file directly
-write_file("{filename}", \"\"\"# Your implementation here
-# Replace this with actual code for: {task_content}
-\"\"\")
-```
-"""
-        else:
-            # Generic implementation guidance
-            return """EXECUTE THIS CODE NOW:
-
-```python
-# Based on your analysis, create the necessary files
+# Skip analysis - you already know what to do
+# Create the necessary files for this task
 # Use write_file() for new files
 # Use edit_file() for modifying existing files
-
-# Example:
-write_file("implementation.py", \"\"\"# Implementation for: """ + task_content + """
-# Add your actual code here
-\"\"\")
 ```
 """
     
@@ -626,184 +470,26 @@ write_file("implementation.py", \"\"\"# Implementation for: """ + task_content +
         """Get retry guidance for backend tasks"""
         return """
 For Ollama backend integration:
-1. Use the correct Ollama API endpoint: http://localhost:11434
-2. Available endpoints:
-   - POST /api/chat - For chat completions
-     Request body: {
-       "model": "llama2",
-       "messages": [{"role": "user", "content": "message"}],
-       "stream": false
-     }
-   - POST /api/generate - For text generation
-     Request body: {
-       "model": "llama2", 
-       "prompt": "your prompt",
-       "stream": false
-     }
-   - GET /api/tags - List available models
-3. COMPLETE working Flask backend with frontend:
-
-```python
-# app.py - Backend
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
-import requests
-import os
-
-app = Flask(__name__, static_folder='.')
-CORS(app)
-
-@app.route('/')
-def index():
-    return send_from_directory('.', 'index.html')
-
-@app.route('/api/chat', methods=['POST'])
-def chat():
-    try:
-        data = request.json
-        user_message = data.get('message', '')
-        
-        # Call Ollama API
-        ollama_response = requests.post(
-            'http://localhost:11434/api/chat',
-            json={
-                'model': 'llama2',
-                'messages': [{'role': 'user', 'content': user_message}],
-                'stream': False
-            },
-            timeout=30
-        )
-        
-        if ollama_response.status_code == 200:
-            result = ollama_response.json()
-            return jsonify({
-                'response': result['message']['content'],
-                'success': True
-            })
-        else:
-            return jsonify({'error': 'Ollama API error', 'success': False}), 500
-            
-    except requests.exceptions.ConnectionError:
-        return jsonify({'error': 'Cannot connect to Ollama. Is it running?', 'success': False}), 500
-    except Exception as e:
-        return jsonify({'error': str(e), 'success': False}), 500
-
-@app.route('/api/models', methods=['GET'])
-def get_models():
-    try:
-        response = requests.get('http://localhost:11434/api/tags')
-        if response.status_code == 200:
-            return jsonify(response.json())
-        else:
-            return jsonify({'error': 'Failed to fetch models'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-```
-
-And create a simple HTML frontend:
-```html
-<!-- index.html -->
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Ollama Chat</title>
-    <style>
-        body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
-        #chat-container { border: 1px solid #ccc; height: 400px; overflow-y: auto; padding: 10px; margin-bottom: 10px; }
-        .message { margin: 10px 0; }
-        .user { color: blue; }
-        .assistant { color: green; }
-        #input-container { display: flex; gap: 10px; }
-        #message-input { flex: 1; padding: 10px; }
-        button { padding: 10px 20px; }
-    </style>
-</head>
-<body>
-    <h1>Ollama Chat</h1>
-    <div id="chat-container"></div>
-    <div id="input-container">
-        <input type="text" id="message-input" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
-        <button onclick="sendMessage()">Send</button>
-    </div>
-    
-    <script>
-        async function sendMessage() {
-            const input = document.getElementById('message-input');
-            const message = input.value.trim();
-            if (!message) return;
-            
-            // Display user message
-            addMessage('You', message, 'user');
-            input.value = '';
-            
-            // Send to backend
-            try {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({message: message})
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    addMessage('Assistant', data.response, 'assistant');
-                } else {
-                    addMessage('Error', data.error, 'error');
-                }
-            } catch (error) {
-                addMessage('Error', 'Failed to send message: ' + error, 'error');
-            }
-        }
-        
-        function addMessage(sender, text, className) {
-            const chatContainer = document.getElementById('chat-container');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message ' + className;
-            messageDiv.innerHTML = '<b>' + sender + ':</b> ' + text;
-            chatContainer.appendChild(messageDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-    </script>
-</body>
-</html>
-```
+- Use the correct Ollama API endpoint: http://localhost:11434
+- Main endpoints: /api/chat, /api/generate, /api/tags
+- Remember to handle connection errors gracefully
 """
     
     def _get_test_retry_guidance(self) -> str:
         """Get retry guidance for test tasks"""
         return """
 For test implementation:
-1. Create actual test cases, not just 'pass' statements
-2. Use proper assertions
-3. Test both success and failure cases
-4. Example:
-
-```python
-import unittest
-from unittest.mock import patch, Mock
-
-class TestOllamaIntegration(unittest.TestCase):
-    def test_get_models_success(self):
-        # Actual test implementation
-        self.assertTrue(True)  # Replace with real assertion
-```
+- Create actual test cases, not just 'pass' statements
+- Use proper assertions
+- Test both success and failure cases
 """
     
     def _get_gui_retry_guidance(self) -> str:
         """Get retry guidance for GUI tasks"""
         return """
 For GUI implementation:
-1. Create a working HTML interface
-2. Add JavaScript for Ollama interaction
-3. Include proper error handling
-4. Example structure:
-
-- index.html - Main interface
-- script.js - JavaScript functionality
-- styles.css - Styling
-
-Make it actually functional, not just placeholder HTML!
+- Create a working HTML interface
+- Add JavaScript for interaction
+- Include proper error handling
+- Make it actually functional, not just placeholder HTML!
 """
