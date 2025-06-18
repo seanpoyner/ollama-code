@@ -40,6 +40,26 @@ class TaskValidator:
             if "command executed successfully" in result.lower() or "created file:" in result.lower():
                 return ValidationResult.PASSED, ""
         
+        # Special handling for package installation tasks
+        if "install" in task_lower and ("npm" in task_lower or "pip" in task_lower or "package" in task_lower):
+            # Check for npm install success patterns
+            if "npm" in task_lower and "bash(" in result:
+                if "packages are looking for funding" in result or "added" in result or "audited" in result:
+                    return ValidationResult.PASSED, ""
+                elif "npm err!" in result.lower():
+                    return ValidationResult.NEEDS_RETRY, "npm install failed. Fix errors and retry with: bash('cd ollama-chat && npm install')"
+                elif "npm install" in result:
+                    # Command was executed, assume success if no errors
+                    return ValidationResult.PASSED, ""
+            # Check for pip install success patterns
+            elif "pip" in task_lower and "bash(" in result:
+                if "successfully installed" in result.lower() or "requirement already satisfied" in result.lower():
+                    return ValidationResult.PASSED, ""
+                elif "error:" in result.lower() and "pip" in result.lower():
+                    return ValidationResult.NEEDS_RETRY, "pip install failed. Check errors and retry."
+                elif "pip install" in result:
+                    return ValidationResult.PASSED, ""
+        
         # For analysis/exploration tasks, don't require file creation
         if any(word in task_lower for word in ["analyze", "explore", "gather", "document", "thoroughly"]):
             # Just check if some exploration was done
@@ -126,11 +146,32 @@ class TaskValidator:
     
     def _validate_implementation(self, task_content: str, result: str, files_created: List[str]) -> Tuple[ValidationResult, str]:
         """Validate implementation tasks"""
+        # Check if this is a package installation task
+        if "install" in task_content.lower() and ("npm" in task_content.lower() or "pip" in task_content.lower()):
+            # For package installation, check for successful installation messages
+            if "npm install" in result:
+                if "packages are looking for funding" in result or "added" in result or "audited" in result:
+                    return ValidationResult.PASSED, ""
+                elif "npm err!" in result.lower():
+                    return ValidationResult.NEEDS_RETRY, "Package installation failed. Check npm errors and retry."
+            elif "pip install" in result:
+                if "successfully installed" in result.lower() or "requirement already satisfied" in result.lower():
+                    return ValidationResult.PASSED, ""
+                elif "error" in result.lower():
+                    return ValidationResult.NEEDS_RETRY, "Package installation failed. Check pip errors and retry."
+            # If we ran the command but no clear success/failure indicator
+            if "bash(" in result:
+                return ValidationResult.PASSED, ""
+        
+        # For other implementation tasks, require files
         if not files_created:
             return ValidationResult.NEEDS_RETRY, "No implementation files created. Create the actual implementation."
         
         # Check for errors in execution
         if "error" in result.lower() or "exception" in result.lower():
+            # Ignore common non-error patterns
+            if any(pattern in result.lower() for pattern in ["no error", "0 errors", "error handling", "error message"]):
+                return ValidationResult.PASSED, ""
             error_msg = self._extract_error_message(result)
             return ValidationResult.NEEDS_RETRY, f"Implementation has errors: {error_msg}. Fix and retry."
         
@@ -219,18 +260,23 @@ class TaskValidator:
         """Generate context for retry attempt"""
         context = f"\n🔄 [RETRY ATTEMPT {attempt_number}]\n\n"
         context += f"❌ Previous attempt failed: {validation_feedback}\n\n"
-        context += "📝 MANDATORY RULES TO PASS VALIDATION:\n"
-        context += "1. Use ```python code blocks ONLY\n"
-        context += "2. Call write_file() inside the Python blocks\n"
-        context += "3. DO NOT use ```html, ```css, or ```javascript blocks\n\n"
-        context += "✅ CORRECT EXAMPLE:\n"
+        context += "📝 SIMPLE RULE: You MUST write actual files!\n\n"
+        context += "✅ DO THIS - Write files in Python blocks:\n"
         context += "```python\n"
-        context += 'write_file("index.html", """<!DOCTYPE html><html>...</html>""")\n'
+        context += '# Example 1: Create an HTML file\n'
+        context += 'write_file("index.html", """<!DOCTYPE html>\n<html>\n<body>\n<h1>Hello</h1>\n</body>\n</html>""")\n\n'
+        context += '# Example 2: Create a JavaScript file\n'
+        context += 'write_file("app.js", """console.log("Hello World");""")\n\n'
+        context += '# Example 3: Create multiple files\n'
+        context += 'write_file("server.js", """const express = require("express");""")\n'
+        context += 'write_file("package.json", """{"name": "my-app"}""")\n'
         context += "```\n\n"
-        context += "❌ WRONG EXAMPLE:\n"
+        context += "❌ DON'T DO THIS - No language-specific blocks:\n"
         context += "```html\n"
-        context += "<!DOCTYPE html>...\n"
+        context += "<!-- This doesn't create a file! -->\n"
+        context += "<html>...</html>\n"
         context += "```\n\n"
+        context += "JUST WRITE THE FILES! The task will fail if no files are created.\n\n"
         
         # Add specific guidance based on task type
         if "backend" in task_content.lower() or "api" in task_content.lower():

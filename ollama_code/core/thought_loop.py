@@ -243,32 +243,18 @@ class ThoughtLoop:
             if previous_results:
                 context += previous_results + "\n"
             
-            context += "🚨 CRITICAL EXECUTION RULES - TASK WILL FAIL IF NOT FOLLOWED:\n"
-            context += "1. You MUST use ```python code blocks for ALL file creation\n"
-            context += "2. You MUST call write_file() inside the Python code blocks\n"
-            context += "3. NEVER use ```html, ```css, ```javascript, ```js blocks\n"
-            context += "4. NEVER just show file content without write_file()\n"
-            context += "5. The task validator REQUIRES actual files to be created\n\n"
-            context += "⚠️ TASK VALIDATION: No files created = TASK FAILED!\n\n"
+            context += "🚨 SIMPLE RULE: Use Python code blocks with write_file()!\n\n"
             
-            context += "✅ CORRECT APPROACH (YOU MUST DO THIS):\n"
+            context += "✅ CORRECT - Creates actual files:\n"
             context += "```python\n"
-            context += "# IMPORTANT: Always use the full path when creating files in a project!\n"
-            context += "# If working in 'ollama-chat' directory, use paths like:\n"
-            context += 'write_file("ollama-chat/index.html", """<!DOCTYPE html>\n<html>\n<body>\n  <h1>Hello</h1>\n</body>\n</html>""")\n'
-            context += "```\n\n"
-            context += "```python\n"
-            context += "# Create files in subdirectories:\n"
-            context += 'write_file("ollama-chat/public/styles.css", """body { margin: 0; }""")\n'
-            context += 'write_file("ollama-chat/src/app.js", """console.log(\'App started\');""")\n'
+            context += 'write_file("ollama-chat/index.html", """<html>...</html>""")\n'
+            context += 'write_file("ollama-chat/app.js", """console.log("Hello");""")\n'
             context += "```\n\n"
             
-            context += "❌ WRONG APPROACH (NEVER DO THIS):\n"
+            context += "❌ WRONG - Doesn't create files:\n"
             context += "```html\n"
-            context += "<!-- This doesn't create a file! -->\n"
             context += "<html>...</html>\n"
             context += "```\n\n"
-            context += "Remember: The task validator will FAIL if no files are created!\n\n"
             
             # Add specific guidance for project creation tasks
             if "create" in next_todo.content.lower() and "project" in next_todo.content.lower():
@@ -281,12 +267,23 @@ class ThoughtLoop:
                     context += "```python\n"
                     context += "# Step 1: Create the directory\n"
                     context += 'bash("mkdir -p ollama-chat")\n\n'
-                    context += "# Step 2: Initialize Node.js project\n"
+                    context += "# Step 2: Initialize Node.js project IN THE PROJECT DIRECTORY\n"
+                    context += '# CRITICAL: Use cd ollama-chat && npm command pattern\n'
                     context += 'bash("cd ollama-chat && npm init -y")\n\n'
-                    context += "# Step 3: Create initial files\n"
+                    context += "# Step 3: Install packages IN THE PROJECT DIRECTORY\n"
+                    context += 'bash("cd ollama-chat && npm install express socket.io")\n\n'
+                    context += "# Step 4: Create initial files WITH PROJECT PATH\n"
                     context += 'write_file("ollama-chat/server.js", """const express = require(\'express\');\nconst app = express();\nconst port = 3000;\n\napp.get(\'/\', (req, res) => {\n  res.send(\'Hello Ollama!\');\n});\n\napp.listen(port, () => {\n  console.log(`Server running at http://localhost:${port}`);\n});""")\n\n'
                     context += 'write_file("ollama-chat/README.md", """# Ollama Chat\\n\\nA Node.js web app for chatting with Ollama models.\\n\\n## Setup\\n\\n1. Install dependencies: `npm install`\\n2. Run server: `node server.js`""")\n'
                     context += "```\n\n"
+                    context += "⚠️ CRITICAL FOR NPM COMMANDS:\n"
+                    context += "- ALWAYS use: bash(\"cd project-dir && npm command\")\n"
+                    context += "- NEVER use: bash(\"npm command\") in root directory\n"
+                    context += "- Example: bash(\"cd ollama-chat && npm install express\")\n\n"
+                    context += "📁 IMPORTANT: Create directories before files:\n"
+                    context += "- bash(\"mkdir -p ollama-chat/public\")\n"
+                    context += "- bash(\"mkdir -p ollama-chat/src\")\n"
+                    context += "- Then create files in those directories\n\n"
                 # Python project guidance
                 else:
                     context += "For Python projects:\n"
@@ -337,19 +334,43 @@ class ThoughtLoop:
             
             # Add specific guidance for file creation tasks
             elif any(word in next_todo.content.lower() for word in ['create', 'write', 'develop', 'implement', 'script', 'test', 'endpoint', 'backend', 'service']):
-                context += "\n[FILE CREATION TASK]\n\n"
-                context += "CRITICAL: You MUST create actual files using Python code blocks with write_file().\n"
-                context += "DO NOT just show file contents in HTML/CSS/JS code blocks.\n"
-                context += "DO NOT explain what you would do - EXECUTE the code.\n\n"
-                context += "CORRECT approach - use Python code blocks:\n"
+                context += "\n[FILE CREATION/MODIFICATION TASK]\n\n"
+                context += "CRITICAL: You MUST create actual files using write_file()!\n\n"
+                context += "SIMPLE APPROACH - Just write the files:\n"
                 context += "```python\n"
-                context += "# Create the actual file\n"
+                context += '# For new files, just write them directly:\n'
                 context += 'write_file("myfile.py", """file contents here""")\n'
+                context += '\n# For existing files, check first:\n'
+                context += 'import os\n'
+                context += 'if os.path.exists("existing.js"):\n'
+                context += '    content = read_file("existing.js")\n'
+                context += '    # Modify content as needed\n'
+                context += '    write_file("existing.js", modified_content)\n'
+                context += 'else:\n'
+                context += '    write_file("existing.js", """new content""")\n'
                 context += "```\n\n"
-                context += "WRONG approach - DO NOT do this:\n"
-                context += "```html\n"
-                context += "<!-- This just shows content, doesn't create a file -->\n"
-                context += "```\n\n"
+                context += "IMPORTANT: Start by writing files! Don't overthink it.\n"
+                context += "If a file already exists, the system will ask for confirmation.\n\n"
+                
+                # Add bash command guidance
+                context += "BASH COMMAND GUIDELINES:\n"
+                context += "- Always use proper directory navigation: bash('cd project && command')\n"
+                context += "- Check if directories exist before navigating: bash('ls')\n"
+                context += "- Use && to chain commands that depend on each other\n"
+                context += "- Use ; to run independent commands\n"
+                context += "- Always quote paths with spaces\n\n"
+                
+                # Add directory creation guidance for GUI tasks
+                if "gui" in next_todo.content.lower() or "html" in next_todo.content.lower():
+                    context += "📁 FOR GUI FILES - CREATE DIRECTORIES FIRST:\n"
+                    context += "```python\n"
+                    context += "# Create public directory for web files\n"
+                    context += 'bash("mkdir -p ollama-chat/public")\n\n'
+                    context += "# Then create your HTML/CSS/JS files\n"
+                    context += 'write_file("ollama-chat/public/index.html", """your html content""")\n'
+                    context += 'write_file("ollama-chat/public/styles.css", """your css content""")\n'
+                    context += 'write_file("ollama-chat/public/app.js", """your js content""")\n'
+                    context += "```\n\n"
                 
                 # Add working directory context
                 context += f"CURRENT WORKING DIRECTORY: {os.getcwd()}\n\n"

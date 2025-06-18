@@ -144,11 +144,15 @@ _env = get_environment_detector()
 def write_file(filename, content):
     \"\"\"Write content to a file\"\"\"
     try:
+        # Check if file already exists
+        file_exists = os.path.exists(filename)
+        
         # Request confirmation through temp file
         confirmation_request = {{
             'action': 'write_file',
             'filename': filename,
-            'content': content
+            'content': content,
+            'exists': file_exists
         }}
         
         with open(CONFIRMATION_FILE, 'w', encoding='utf-8') as f:
@@ -156,7 +160,10 @@ def write_file(filename, content):
         
         # Signal that we need confirmation by printing special marker
         print("###CONFIRMATION_NEEDED###", flush=True)
-        print(f"Writing to: {{filename}}", flush=True)
+        if file_exists:
+            print(f"⚠️  Overwriting existing file: {{filename}}", flush=True)
+        else:
+            print(f"Writing to: {{filename}}", flush=True)
         
         # Wait for confirmation result
         import time
@@ -174,8 +181,11 @@ def write_file(filename, content):
                                 file_path.parent.mkdir(parents=True, exist_ok=True)
                             with open(filename, 'w', encoding='utf-8') as f:
                                 f.write(content)
-                            print(f"Created file: {{filename}}")
-                            return f"File {{filename}} created successfully"
+                            if file_exists:
+                                print(f"Updated existing file: {{filename}}")
+                            else:
+                                print(f"Created file: {{filename}}")
+                            return f"File {{filename}} {{'updated' if file_exists else 'created'}} successfully"
                         else:
                             feedback = result.get('feedback', 'File write cancelled by user')
                             print(f"File write cancelled: {{feedback}}")
@@ -215,8 +225,41 @@ def list_files(directory="."):
 
 def bash(command):
     \"\"\"Execute a bash/shell command\"\"\"
+    import re
     
     try:
+        # Track the actual working directory for the command
+        # This ensures npm commands run in the right directory
+        actual_cwd = os.getcwd()
+        
+        # Validate common mistakes
+        if "npm install" in command and not ("cd " in command or actual_cwd.endswith(('ollama-chat', 'full-web-app-dev'))):
+            print("⚠️  WARNING: Running npm install in root directory. Consider: bash('cd project-name && npm install')")
+        
+        if "npm init" in command and not ("cd " in command or actual_cwd.endswith(('ollama-chat', 'full-web-app-dev'))):
+            print("⚠️  WARNING: Running npm init in root directory. Consider: bash('cd project-name && npm init -y')")
+        
+        # Check if the command contains a cd operation
+        if "cd " in command and "&&" in command:
+            # Extract the directory change and the actual command
+            parts = command.split("&&", 1)
+            cd_part = parts[0].strip()
+            actual_command = parts[1].strip() if len(parts) > 1 else ""
+            
+            # Extract the target directory from cd command
+            cd_match = re.match(r'cd\\s+([^;]+)', cd_part)
+            if cd_match:
+                target_dir = cd_match.group(1).strip().strip('"').strip("'")
+                # Resolve the target directory
+                target_path = os.path.join(actual_cwd, target_dir)
+                if os.path.exists(target_path):
+                    actual_cwd = target_path
+                    # If we have a command after cd, execute it in that directory
+                    if actual_command:
+                        command = actual_command
+                else:
+                    print(f"⚠️  WARNING: Directory does not exist. It will be created if needed.")
+        
         # Detect if this is a Flask/server command that would block
         is_blocking_command = any(pattern in command.lower() for pattern in [
             'python app.py',
@@ -228,12 +271,16 @@ def bash(command):
             'python backend.py',
             'python api.py',
             'python web.py',
-            'python main.py'
+            'python main.py',
+            'node server.js',
+            'npm start',
+            'npm run dev'
         ])
         
         if is_blocking_command and not any(flag in command for flag in ['&', 'nohup', '--daemon']):
             # For blocking commands, run in background and capture initial output
             print(f"Starting server in background mode: {{command}}")
+            print(f"Working directory: {{actual_cwd}}")
             
             # Modify command to run in background
             if _env.os_type == 'windows':
@@ -243,7 +290,7 @@ def bash(command):
                 # Unix-like: append & to run in background
                 bg_command = f'{{command}} > server.log 2>&1 & echo $!'
             
-            result = _env.execute_command(bg_command, timeout=3)
+            result = _env.execute_command(bg_command, timeout=3, cwd=actual_cwd)
             
             if result['success']:
                 output = "Server started in background. "
@@ -252,7 +299,7 @@ def bash(command):
                 try:
                     import time
                     time.sleep(1)  # Give server time to start
-                    log_result = _env.execute_command('head -20 server.log 2>/dev/null || echo "No log output yet"', timeout=2)
+                    log_result = _env.execute_command('head -20 server.log 2>/dev/null || echo "No log output yet"', timeout=2, cwd=actual_cwd)
                     if log_result['success'] and log_result['output']:
                         output += f"\\nInitial server output:\\n{{log_result['output']}}"
                 except:
@@ -264,7 +311,12 @@ def bash(command):
                 return f"Failed to start server: {{result['error']}}"
         else:
             # Normal command execution
-            result = _env.execute_command(command, timeout=30)
+            # For debugging, show the working directory for npm commands
+            if "npm" in command or "node" in command:
+                print(f"Executing: {{command}}")
+                print(f"Working directory: {{actual_cwd}}")
+            
+            result = _env.execute_command(command, timeout=30, cwd=actual_cwd)
             
             if result['success']:
                 return result['output'] if result['output'] else "Command executed successfully (no output)"
@@ -418,7 +470,8 @@ remember_solution = None
                         # Handle confirmation in main thread
                         approved, feedback = self.write_confirmation_callback(
                             request['filename'],
-                            request['content']
+                            request['content'],
+                            request.get('exists', False)
                         )
                         
                         # Write response

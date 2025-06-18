@@ -61,8 +61,19 @@ class OllamaCodeAgent:
         
         full_prompt = base_prompt + execution_rules
         
+        # Add CRITICAL file creation reminder
+        full_prompt += "\n\n## 🚨 CRITICAL: File Creation Rule\n"
+        full_prompt += "When creating files, you MUST:\n"
+        full_prompt += "1. Use ```python code blocks\n"
+        full_prompt += "2. Call write_file() inside those blocks\n"
+        full_prompt += "3. NEVER use ```html, ```css, ```js blocks alone\n\n"
+        full_prompt += "Example:\n"
+        full_prompt += "```python\n"
+        full_prompt += 'write_file("app.js", """console.log("Hello");""")\n'
+        full_prompt += "```\n\n"
+        
         # Add documentation tools info
-        full_prompt += "\n\n## Documentation Tools Available\n"
+        full_prompt += "## Documentation Tools Available\n"
         full_prompt += "You have access to the following documentation tools:\n"
         full_prompt += "- search_docs(query, source_type=None): Search for documentation and get relevant context\n"
         full_prompt += "- get_api_info(service, endpoint=None): Get API endpoint information\n"
@@ -83,7 +94,7 @@ class OllamaCodeAgent:
         
         return full_prompt
     
-    def _confirm_file_write(self, filename, content):
+    def _confirm_file_write(self, filename, content, exists=False):
         """Confirm file write with user"""
         # Track files created for validation
         self.files_created_in_task.append(filename)
@@ -117,8 +128,11 @@ class OllamaCodeAgent:
         file_ext = Path(filename).suffix.lower()
         syntax = ext_map.get(file_ext, 'text')
         
-        # Show file preview
-        console.print(f"\n{get_message('file_operations.write_request', filename=filename)}")
+        # Show file preview with appropriate message
+        if exists:
+            console.print(f"\n⚠️  {get_message('file_operations.overwrite_request', filename=filename)}")
+        else:
+            console.print(f"\n{get_message('file_operations.write_request', filename=filename)}")
         
         # Truncate content if too long
         preview_content = content
@@ -763,9 +777,20 @@ class OllamaCodeAgent:
                     analysis_prompt = f"Create an OLLAMA.md file for a new project named '{project_name}': {user_context}"
         
         # Get AI to analyze and create OLLAMA.md (disable ESC cancel and task breakdown for init, but ENABLE function extraction)
+        console.print("🤖 [dim]Sending analysis request to {}...[/dim]".format(self.model))
+        console.print("⏳ [dim]This may take a moment for large codebases[/dim]")
+        
         response = await self.chat(analysis_prompt, enable_esc_cancel=False, skip_function_extraction=False, skip_task_breakdown=True)
         
-        # No need to extract content - the AI will use write_file() to create OLLAMA.md
+        # Wait a moment to ensure file write completes
+        import time
+        time.sleep(0.5)
+        
+        # Check if OLLAMA.md was created
+        ollama_md_path = Path.cwd() / "OLLAMA.md"
+        if not ollama_md_path.exists():
+            console.print("⚠️ [yellow]OLLAMA.md was not created. The AI response may not have executed properly.[/yellow]")
+            logger.warning("OLLAMA.md creation failed - file not found after AI response")
         import json
         
         # Create .ollama-code directory and settings.local.json
@@ -786,10 +811,15 @@ class OllamaCodeAgent:
             with open(settings_path, 'w', encoding='utf-8') as f:
                 json.dump(default_settings, f, indent=2)
             
-            console.print(f"📁 [green]Created .ollama-code/settings.local.json[/green]")
+            console.print(f"📁 [green]Created {settings_path.relative_to(Path.cwd())}[/green]")
         
-        console.print(get_message('init.success'))
-        logger.info(f"Created OLLAMA.md in {Path.cwd()}")
+        # Only show success if OLLAMA.md was actually created
+        if ollama_md_path.exists():
+            console.print(get_message('init.success'))
+            logger.info(f"Created OLLAMA.md in {Path.cwd()}")
+        else:
+            console.print("❌ [red]Failed to create OLLAMA.md[/red]")
+            console.print("💡 [dim]Try running the command again or check the logs for errors[/dim]")
     
     async def _execute_tasks_sequentially(self, enable_esc_cancel=True):
         """Execute tasks one by one in separate AI calls"""
