@@ -243,17 +243,22 @@ class ThoughtLoop:
             if previous_results:
                 context += previous_results + "\n"
             
-            context += "🚨 SIMPLE RULE: Use Python code blocks with write_file()!\n\n"
+            context += "🚨 CRITICAL: STOP EXPLAINING, START DOING!\n\n"
+            context += "You MUST execute Python code to create/modify files!\n"
+            context += "DO NOT just describe what should be done!\n"
+            context += "DO NOT show file contents without write_file() or edit_file()!\n\n"
             
-            context += "✅ CORRECT - Creates actual files:\n"
+            context += "EXECUTE THIS PATTERN:\n"
             context += "```python\n"
-            context += 'write_file("ollama-chat/index.html", """<html>...</html>""")\n'
-            context += 'write_file("ollama-chat/app.js", """console.log("Hello");""")\n'
+            context += "# 1. Check what exists\n"
+            context += "files = list_files()\n"
+            context += "print(files)\n"
             context += "```\n\n"
-            
-            context += "❌ WRONG - Doesn't create files:\n"
-            context += "```html\n"
-            context += "<html>...</html>\n"
+            context += "```python\n"
+            context += "# 2. Create/modify files based on the task\n"
+            context += "# Use write_file() for new files\n"
+            context += "# Use edit_file() for small changes to existing files\n"
+            context += "# Use read_file() + write_file() for major changes\n"
             context += "```\n\n"
             
             # Add specific guidance for project creation tasks
@@ -333,31 +338,31 @@ class ThoughtLoop:
                 context += "After executing, summarize what you found.\n"
             
             # Add specific guidance for file creation tasks
-            elif any(word in next_todo.content.lower() for word in ['create', 'write', 'develop', 'implement', 'script', 'test', 'endpoint', 'backend', 'service']):
-                context += "\n[FILE CREATION/MODIFICATION TASK]\n\n"
-                context += "🚨 CRITICAL: Check if files exist before modifying!\n\n"
-                context += "WORKFLOW FOR FILE OPERATIONS:\n"
+            elif any(word in next_todo.content.lower() for word in ['create', 'write', 'develop', 'implement', 'script', 'test', 'endpoint', 'backend', 'service', 'websocket', 'socket']):
+                context += "\n[FILE CREATION/MODIFICATION TASK - EXECUTE NOW]\n\n"
+                context += "🚨 YOU MUST EXECUTE CODE TO CREATE/MODIFY FILES!\n\n"
+                context += "Step 1: Check what files exist:\n"
                 context += "```python\n"
-                context += '# 1. For NEW files - use write_file():\n'
-                context += 'write_file("newfile.py", """file contents here""")\n\n'
-                context += '# 2. For EXISTING files - use edit_file() for small changes:\n'
-                context += 'edit_file("server.js", \n'
-                context += '    "res.send(\\"Hello World!\\");",\n'
-                context += '    "res.sendFile(__dirname + \\"/index.html\\");")\n\n'
-                context += '# 3. For MAJOR changes - read, modify, write:\n'
-                context += 'content = read_file("index.html")\n'
-                context += '# Make your modifications to content\n'
-                context += 'write_file("index.html", modified_content)\n\n'
-                context += '# 4. Always check if file exists first:\n'
-                context += 'import os\n'
-                context += 'if os.path.exists("app.js"):\n'
-                context += '    # File exists - edit it\n'
-                context += '    edit_file("app.js", "old_code", "new_code")\n'
-                context += 'else:\n'
-                context += '    # File doesn\'t exist - create it\n'
-                context += '    write_file("app.js", """new content""")\n'
+                context += "import os\n"
+                context += "files = list_files()\n"
+                context += "print(\"Current files:\", files)\n"
                 context += "```\n\n"
-                context += "IMPORTANT: Use edit_file() for small changes to avoid rewriting entire files!\n\n"
+                context += "Step 2: Read existing files if modifying:\n"
+                context += "```python\n"
+                context += "# Read any files you need to modify\n"
+                context += "# based on what you found in step 1\n"
+                context += "```\n\n"
+                context += "Step 3: Create or modify files:\n"
+                context += "```python\n"
+                context += "# Based on your analysis from steps 1 and 2:\n"
+                context += "# - Use write_file() for new files\n"
+                context += "# - Use edit_file() for small changes\n"
+                context += "# - Use read_file() + modifications + write_file() for major changes\n"
+                context += "\n"
+                context += "# YOU MUST ACTUALLY CREATE/MODIFY FILES HERE!\n"
+                context += "# The task will FAIL if you don't execute file operations.\n"
+                context += "```\n\n"
+                context += "DO NOT JUST EXPLAIN - EXECUTE THE CODE!\n\n"
                 
                 # Add bash command guidance
                 context += "BASH COMMAND GUIDELINES:\n"

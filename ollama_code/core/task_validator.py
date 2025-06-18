@@ -260,23 +260,22 @@ class TaskValidator:
         """Generate context for retry attempt"""
         context = f"\n🔄 [RETRY ATTEMPT {attempt_number}]\n\n"
         context += f"❌ Previous attempt failed: {validation_feedback}\n\n"
-        context += "📝 SIMPLE RULE: You MUST write actual files!\n\n"
-        context += "✅ DO THIS - Write files in Python blocks:\n"
+        context += "🚨 STOP EXPLAINING AND START DOING!\n\n"
+        context += "EXECUTE THIS CODE NOW:\n"
         context += "```python\n"
-        context += '# Example 1: Create an HTML file\n'
-        context += 'write_file("index.html", """<!DOCTYPE html>\n<html>\n<body>\n<h1>Hello</h1>\n</body>\n</html>""")\n\n'
-        context += '# Example 2: Create a JavaScript file\n'
-        context += 'write_file("app.js", """console.log("Hello World");""")\n\n'
-        context += '# Example 3: Create multiple files\n'
-        context += 'write_file("server.js", """const express = require("express");""")\n'
-        context += 'write_file("package.json", """{"name": "my-app"}""")\n'
+        context += "# Step 1: Check existing files\n"
+        context += "import os\n"
+        context += "files = list_files()\n"
+        context += "print(files)\n"
         context += "```\n\n"
-        context += "❌ DON'T DO THIS - No language-specific blocks:\n"
-        context += "```html\n"
-        context += "<!-- This doesn't create a file! -->\n"
-        context += "<html>...</html>\n"
+        context += "```python\n"
+        context += "# Step 2: Implement the actual task\n"
+        
+        context += "# Create/modify the required files for THIS SPECIFIC TASK\n"
+        context += "# Don't just show examples - IMPLEMENT THE ACTUAL SOLUTION!\n"
+        
         context += "```\n\n"
-        context += "JUST WRITE THE FILES! The task will fail if no files are created.\n\n"
+        context += "STOP READING THIS AND EXECUTE THE CODE ABOVE!\n\n"
         
         # Add specific guidance based on task type
         if "backend" in task_content.lower() or "api" in task_content.lower():
