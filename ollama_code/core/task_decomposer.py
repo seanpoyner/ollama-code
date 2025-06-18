@@ -121,7 +121,7 @@ app.listen(PORT, () => {
             type=SubTaskType.CREATE_FILE,
             description="Create/update server.js file",
             action=f'write_file("server.js", """{server_template}""")',
-            validation="File 'server.js' exists and contains server code",
+            validation="File 'server.js' exists",
             dependencies=["check_deps"]
         ))
         
@@ -244,28 +244,9 @@ button {
     
     def _decompose_generic_task(self, task_content: str) -> List[ConcreteSubTask]:
         """Decompose a generic task"""
-        subtasks = []
-        
-        # Always start with analysis
-        subtasks.append(ConcreteSubTask(
-            id="analyze",
-            type=SubTaskType.ANALYZE,
-            description="Analyze the current state",
-            action="files = list_files(); print(f'Current files: {files}')",
-            validation="Shows current files"
-        ))
-        
-        # Then create implementation
-        subtasks.append(ConcreteSubTask(
-            id="implement",
-            type=SubTaskType.CREATE_FILE,
-            description="Implement the requested functionality",
-            action='# Create the necessary files based on the task requirements',
-            validation="Implementation files created",
-            dependencies=["analyze"]
-        ))
-        
-        return subtasks
+        # For generic tasks, don't create subtasks - let the AI handle it naturally
+        # This prevents the infinite loop of meaningless subtasks
+        return []
     
     def validate_subtask(self, subtask: ConcreteSubTask, output: str) -> bool:
         """Validate if a subtask completed successfully"""
@@ -278,7 +259,10 @@ button {
             filename_match = re.search(r"['\"]([^'\"]+)['\"]", subtask.validation)
             if filename_match:
                 filename = filename_match.group(1)
-                return f"created file: {filename}" in output_lower or f"wrote to {filename}" in output_lower
+                return (f"created file: {filename}" in output_lower or 
+                        f"wrote to {filename}" in output_lower or
+                        f"updated existing file: {filename}" in output_lower or
+                        f"overwriting existing file: {filename}" in output_lower)
         
         if "contains" in validation_lower:
             # Check if output contains expected content

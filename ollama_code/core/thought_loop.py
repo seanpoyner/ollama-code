@@ -30,7 +30,8 @@ class ThoughtLoop:
         self.task_attempts = {}  # Track retry attempts per task
         self.task_decomposer = TaskDecomposer()  # New task decomposer
         self.current_subtasks = []  # Current concrete subtasks
-        self.current_subtask_index = 0  # Index of current subtask
+        self.current_subtask_index = 0
+        self.current_todo_id = None  # Track which todo the subtasks belong to  # Index of current subtask
     
     def process_request(self, request: str) -> Tuple[List[Dict], str]:
         """
@@ -183,6 +184,33 @@ class ThoughtLoop:
     
     def get_next_task_context(self) -> Optional[str]:
         """Get context for the next task to work on"""
+        # First check if we're already working on subtasks
+        if self.current_subtasks and self.current_subtask_index < len(self.current_subtasks):
+            # We're in the middle of executing subtasks, don't re-initialize
+            current_subtask = self.current_subtasks[self.current_subtask_index]
+            
+            # Check dependencies
+            can_execute = True
+            if current_subtask.dependencies:
+                for dep_id in current_subtask.dependencies:
+                    dep_task = next((st for st in self.current_subtasks if st.id == dep_id), None)
+                    if dep_task and not dep_task.completed:
+                        can_execute = False
+                        break
+            
+            if can_execute:
+                context = f"\n🎯 [SUBTASK {self.current_subtask_index + 1}/{len(self.current_subtasks)}]\n"
+                context += f"Task: {current_subtask.description}\n"
+                context += f"Validation: {current_subtask.validation}\n\n"
+                context += "EXECUTE ONLY THIS CODE:\n"
+                context += "```python\n"
+                context += current_subtask.action
+                context += "\n```\n\n"
+                context += "IMPORTANT: Execute ONLY the code above. Do not add anything else.\n"
+                context += "The output will be validated against: " + current_subtask.validation + "\n"
+                return context
+        
+        # Otherwise, get the next todo
         next_todo = self.todo_manager.get_next_todo()
         if next_todo:
             # Track task attempts
@@ -202,14 +230,17 @@ class ThoughtLoop:
             color = priority_colors.get(next_todo.priority, "white")
             console.print(f"\n🚀 [cyan]Starting task:[/cyan] [{color}]{next_todo.content}[/{color}]")
             
-            # Create concrete subtasks using the new decomposer
-            self.current_subtasks = self.task_decomposer.decompose_task(next_todo.content)
-            self.current_subtask_index = 0
-            
-            if self.current_subtasks:
-                console.print(f"\n🔧 [dim]Breaking down into {len(self.current_subtasks)} concrete sub-tasks:[/dim]")
-                for i, subtask in enumerate(self.current_subtasks):
-                    console.print(f"   {i+1}. {subtask.description}")
+            # Create concrete subtasks only if we don't already have them for this todo
+            # This prevents recreating subtasks on each call
+            if self.current_todo_id != next_todo.id or not self.current_subtasks:
+                self.current_subtasks = self.task_decomposer.decompose_task(next_todo.content)
+                self.current_subtask_index = 0
+                self.current_todo_id = next_todo.id
+                
+                if self.current_subtasks:
+                    console.print(f"\n🔧 [dim]Breaking down into {len(self.current_subtasks)} concrete sub-tasks:[/dim]")
+                    for i, subtask in enumerate(self.current_subtasks):
+                        console.print(f"   {i+1}. {subtask.description}")
             
             # Legacy subtask manager (keep for now)
             subtask_manager = SubTaskManager()
@@ -298,33 +329,8 @@ class ThoughtLoop:
                 context += "- Add a README.md file\n\n"
                 context += "IMPORTANT: Creating just the directory is NOT enough. You MUST create files!\n\n"
             
-            # Check if we have concrete subtasks to execute
-            if self.current_subtasks and self.current_subtask_index < len(self.current_subtasks):
-                current_subtask = self.current_subtasks[self.current_subtask_index]
-                
-                # Check dependencies
-                can_execute = True
-                if current_subtask.dependencies:
-                    for dep_id in current_subtask.dependencies:
-                        dep_task = next((st for st in self.current_subtasks if st.id == dep_id), None)
-                        if dep_task and not dep_task.completed:
-                            can_execute = False
-                            break
-                
-                if can_execute:
-                    context = f"\n🎯 [SUBTASK {self.current_subtask_index + 1}/{len(self.current_subtasks)}]\n"
-                    context += f"Task: {current_subtask.description}\n"
-                    context += f"Validation: {current_subtask.validation}\n\n"
-                    context += "EXECUTE ONLY THIS CODE:\n"
-                    context += "```python\n"
-                    context += current_subtask.action
-                    context += "\n```\n\n"
-                    context += "IMPORTANT: Execute ONLY the code above. Do not add anything else.\n"
-                    context += "The output will be validated against: " + current_subtask.validation + "\n"
-                    return context
-            
             # Legacy: Check if we have sub-tasks to execute
-            elif hasattr(self, 'current_subtask_manager') and self.current_subtask_manager:
+            if hasattr(self, 'current_subtask_manager') and self.current_subtask_manager:
                 next_subtask = self.current_subtask_manager.get_next_subtask()
                 if next_subtask:
                     context += "\n[EXECUTING SUB-TASK]\n"
@@ -452,6 +458,10 @@ class ThoughtLoop:
             # Store the result if provided
             if result:
                 self.task_results[task.id] = result
+            # Clear subtasks when task completes
+            self.current_subtasks = []
+            self.current_subtask_index = 0
+            self.current_todo_id = None
             # Display completion message
             console.print(f"\n✅ [green]Task completed:[/green] {task.content}")
     
