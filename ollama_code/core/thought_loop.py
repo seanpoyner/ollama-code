@@ -335,22 +335,29 @@ class ThoughtLoop:
             # Add specific guidance for file creation tasks
             elif any(word in next_todo.content.lower() for word in ['create', 'write', 'develop', 'implement', 'script', 'test', 'endpoint', 'backend', 'service']):
                 context += "\n[FILE CREATION/MODIFICATION TASK]\n\n"
-                context += "CRITICAL: You MUST create actual files using write_file()!\n\n"
-                context += "SIMPLE APPROACH - Just write the files:\n"
+                context += "🚨 CRITICAL: Check if files exist before modifying!\n\n"
+                context += "WORKFLOW FOR FILE OPERATIONS:\n"
                 context += "```python\n"
-                context += '# For new files, just write them directly:\n'
-                context += 'write_file("myfile.py", """file contents here""")\n'
-                context += '\n# For existing files, check first:\n'
+                context += '# 1. For NEW files - use write_file():\n'
+                context += 'write_file("newfile.py", """file contents here""")\n\n'
+                context += '# 2. For EXISTING files - use edit_file() for small changes:\n'
+                context += 'edit_file("server.js", \n'
+                context += '    "res.send(\\"Hello World!\\");",\n'
+                context += '    "res.sendFile(__dirname + \\"/index.html\\");")\n\n'
+                context += '# 3. For MAJOR changes - read, modify, write:\n'
+                context += 'content = read_file("index.html")\n'
+                context += '# Make your modifications to content\n'
+                context += 'write_file("index.html", modified_content)\n\n'
+                context += '# 4. Always check if file exists first:\n'
                 context += 'import os\n'
-                context += 'if os.path.exists("existing.js"):\n'
-                context += '    content = read_file("existing.js")\n'
-                context += '    # Modify content as needed\n'
-                context += '    write_file("existing.js", modified_content)\n'
+                context += 'if os.path.exists("app.js"):\n'
+                context += '    # File exists - edit it\n'
+                context += '    edit_file("app.js", "old_code", "new_code")\n'
                 context += 'else:\n'
-                context += '    write_file("existing.js", """new content""")\n'
+                context += '    # File doesn\'t exist - create it\n'
+                context += '    write_file("app.js", """new content""")\n'
                 context += "```\n\n"
-                context += "IMPORTANT: Start by writing files! Don't overthink it.\n"
-                context += "If a file already exists, the system will ask for confirmation.\n\n"
+                context += "IMPORTANT: Use edit_file() for small changes to avoid rewriting entire files!\n\n"
                 
                 # Add bash command guidance
                 context += "BASH COMMAND GUIDELINES:\n"

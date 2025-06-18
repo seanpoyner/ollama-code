@@ -21,33 +21,38 @@ code:
        - Call it like: write_file("README.md", "# My Project\n\nDescription...")
        - NOTE: The user will be asked to approve each file write before it's created
        
-    3. read_file(filename): Read a file's contents
+    3. edit_file(filename, search_text, replace_text): Edit a file by replacing text
+       - Use this for SMALL CHANGES to existing files
+       - Example: edit_file("server.js", "Hello World", "Welcome!")
+       - This avoids rewriting the entire file
+       
+    4. read_file(filename): Read a file's contents
        - Returns the FULL file content as a string
        - ALWAYS use this to read entire files, not just portions
        - Example: content = read_file("app.js")  # Reads the ENTIRE file
        
-    4. list_files(directory): List files in a directory
+    5. list_files(directory): List files in a directory
        - Default is current directory
     
-    5. bash(command): Execute shell/bash commands
+    6. bash(command): Execute shell/bash commands
        - Use for git, npm, pip, file operations, etc.
        - Example: bash("ls")
        - Example: bash("git status")
        - NOTE: Currently executes without confirmation in sandbox mode
     
-    6. search_docs(query, source_type=None): Search documentation
+    7. search_docs(query, source_type=None): Search documentation
        - ALWAYS use this when you need API information
        - Use this BEFORE implementing any external API calls
        - Example: search_docs("ollama api endpoints")
        - Example: search_docs("requests library", "python")
        - Returns relevant documentation to prevent hallucination
     
-    7. get_api_info(service, endpoint=None): Get specific API information
+    8. get_api_info(service, endpoint=None): Get specific API information
        - Use for known services like 'ollama'
        - Example: get_api_info("ollama", "/api/generate")
        - Returns exact parameters, methods, and examples
     
-    8. remember_solution(title, description, code, language="python", tags=None):
+    9. remember_solution(title, description, code, language="python", tags=None):
        - Use this to save successful solutions for future reference
        - Example: remember_solution("Ollama chat example", "Basic chat completion", code_str)
     
@@ -63,7 +68,12 @@ code:
     - ALWAYS verify with get_api_info("ollama") first!
     
     TOOL USAGE:
-    When the user asks you to create files, use the write_file() tool explicitly.
+    When working with files, follow this approach:
+    1. ALWAYS check if a file exists first using os.path.exists() or read_file()
+    2. For NEW files: use write_file()
+    3. For EXISTING files with SMALL changes: use edit_file() 
+    4. For EXISTING files with MAJOR changes: read_file(), modify, then write_file()
+    
     DO NOT use "# File: filename" syntax - that is outdated.
     
     ```python

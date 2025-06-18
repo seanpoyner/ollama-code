@@ -203,6 +203,29 @@ def write_file(filename, content):
         print(f"Failed to create file: {{e}}")
         return f"Failed to create file: {{e}}"
 
+def edit_file(filename, search_text, replace_text):
+    \"\"\"Edit a file by replacing specific text\"\"\"
+    try:
+        # First read the file
+        if not os.path.exists(filename):
+            return f"Error: File {{filename}} does not exist. Use write_file() to create it first."
+        
+        with open(filename, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Check if search text exists
+        if search_text not in content:
+            return f"Error: Text to replace not found in {{filename}}"
+        
+        # Replace the text
+        new_content = content.replace(search_text, replace_text)
+        
+        # Write back using the existing write_file function for confirmation
+        return write_file(filename, new_content)
+    except Exception as e:
+        print(f"Failed to edit file: {{e}}")
+        return f"Failed to edit file: {{e}}"
+
 def read_file(filename):
     \"\"\"Read content from a file\"\"\"
     try:

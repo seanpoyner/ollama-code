@@ -61,15 +61,19 @@ class OllamaCodeAgent:
         
         full_prompt = base_prompt + execution_rules
         
-        # Add CRITICAL file creation reminder
-        full_prompt += "\n\n## 🚨 CRITICAL: File Creation Rule\n"
-        full_prompt += "When creating files, you MUST:\n"
-        full_prompt += "1. Use ```python code blocks\n"
-        full_prompt += "2. Call write_file() inside those blocks\n"
-        full_prompt += "3. NEVER use ```html, ```css, ```js blocks alone\n\n"
-        full_prompt += "Example:\n"
+        # Add CRITICAL file operation reminder
+        full_prompt += "\n\n## 🚨 CRITICAL: File Operation Rules\n"
+        full_prompt += "When working with files:\n"
+        full_prompt += "1. Check if file exists: os.path.exists() or read_file()\n"
+        full_prompt += "2. For NEW files: use write_file()\n"
+        full_prompt += "3. For EXISTING files: use edit_file() for small changes\n"
+        full_prompt += "4. Use ```python code blocks for ALL file operations\n\n"
+        full_prompt += "Examples:\n"
         full_prompt += "```python\n"
-        full_prompt += 'write_file("app.js", """console.log("Hello");""")\n'
+        full_prompt += '# Create new file:\n'
+        full_prompt += 'write_file("app.js", """console.log("Hello");""")\n\n'
+        full_prompt += '# Edit existing file:\n'
+        full_prompt += 'edit_file("server.js", "Hello World", "Welcome!")\n'
         full_prompt += "```\n\n"
         
         # Add documentation tools info
