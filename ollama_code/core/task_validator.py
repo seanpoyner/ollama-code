@@ -339,56 +339,51 @@ class TaskValidator:
         """Check if the result shows meaningful progress towards task completion"""
         meaningful_indicators = [
             # File operations
-            'write_file(' in result,
-            'created file:' in result.lower(),
-            'mkdir' in result and 'successfully' in result.lower(),
+            ('write_file(' in result, 'file writing'),
+            ('created file:' in result.lower(), 'file creation'),
+            ('mkdir' in result and 'successfully' in result.lower(), 'directory creation'),
             
             # Code execution
-            'bash(' in result,
-            'subprocess.run' in result,
-            'execute_code' in result,
+            ('bash(' in result, 'bash command execution'),
+            ('subprocess.run' in result, 'subprocess execution'),
+            ('execute_code' in result, 'code execution'),
             
             # Analysis actions
-            'read_file(' in result,
-            'list_files(' in result,
-            'search_docs(' in result,
-            'get_api_info(' in result,
+            ('read_file(' in result, 'file reading'),
+            ('list_files(' in result, 'file listing'),
+            ('search_docs(' in result, 'documentation search'),
+            ('get_api_info(' in result, 'API info retrieval'),
             
             # Implementation indicators
-            'def ' in result,
-            'function ' in result,
-            'class ' in result,
-            'import ' in result,
+            ('def ' in result, 'function definition'),
+            ('function ' in result, 'function implementation'),
+            ('class ' in result, 'class definition'),
+            ('import ' in result, 'module imports'),
             
             # Package management
-            'npm install' in result,
-            'pip install' in result,
-            'requirements.txt' in result,
-            'package.json' in result,
+            ('npm install' in result, 'npm package installation'),
+            ('pip install' in result, 'pip package installation'),
+            ('requirements.txt' in result, 'requirements file'),
+            ('package.json' in result, 'package.json setup'),
             
             # Testing
-            'test' in result.lower() and ('passed' in result.lower() or 'ok' in result.lower()),
-            'pytest' in result,
-            'unittest' in result,
+            ('test' in result.lower() and ('passed' in result.lower() or 'ok' in result.lower()), 'test execution'),
+            ('pytest' in result, 'pytest execution'),
+            ('unittest' in result, 'unittest execution'),
             
             # API/Backend
-            'route' in result,
-            'endpoint' in result,
-            'server' in result.lower(),
-            'flask' in result.lower(),
-            'express' in result.lower()
+            ('route' in result, 'route definition'),
+            ('endpoint' in result, 'endpoint creation'),
+            ('server' in result.lower(), 'server setup'),
+            ('flask' in result.lower(), 'Flask setup'),
+            ('express' in result.lower(), 'Express setup')
         ]
         
         # Check if this action hasn't been done before
-        current_action = None
-        for indicator in meaningful_indicators:
-            if indicator:
-                current_action = indicator
-                break
-        
-        if current_action and current_action not in progress.get('steps_completed', []):
-            progress['steps_completed'].append(current_action)
-            return True
+        for condition, action_name in meaningful_indicators:
+            if condition and action_name not in progress.get('steps_completed', []):
+                progress['steps_completed'].append(action_name)
+                return True
         
         return False
     
