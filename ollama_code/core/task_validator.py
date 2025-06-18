@@ -224,18 +224,18 @@ class TaskValidator:
         if is_multi_step and progress['attempt_count'] == 1:
             # Check if initial analysis was done
             if any(step in result for step in self.valid_first_steps):
-                return ValidationResult.NEEDS_RETRY, "Good start! Now implement the actual functionality based on your analysis."
+                return ValidationResult.NEEDS_RETRY, "Analysis complete. Now CREATE THE FILES! Use write_file() to implement the functionality."
             
             # Check if some files were created but not all
             if files_created and len(files_created) < 3:  # Arbitrary threshold
-                return ValidationResult.NEEDS_RETRY, "Partial implementation detected. Continue implementing the remaining components."
+                return ValidationResult.NEEDS_RETRY, "Good progress! Continue creating the remaining files."
         
         # For other implementation tasks, require files
         if not files_created:
             # Allow first step to be analysis
             if progress['attempt_count'] == 1 and any(step in result for step in self.valid_first_steps):
-                return ValidationResult.NEEDS_RETRY, "Analysis complete. Now create the implementation files."
-            return ValidationResult.NEEDS_RETRY, "No implementation files created. Create the actual implementation."
+                return ValidationResult.NEEDS_RETRY, "Analysis complete. Now CREATE THE FILES! Use write_file() to implement."
+            return ValidationResult.NEEDS_RETRY, "No files created. You MUST use write_file() to create the implementation files!"
         
         # Check for errors in execution
         if "error" in result.lower() or "exception" in result.lower():
@@ -405,6 +405,12 @@ class TaskValidator:
         else:
             context += "🚨 STOP EXPLAINING AND START DOING!\n\n"
         
+        # Check if AI is stuck in a loop just listing files
+        if attempt_number > 2 and "list_files()" in str(progress.get('steps_completed', [])):
+            context += "🛑 STOP LISTING FILES! You've done that already!\n\n"
+            context += self._get_implementation_guidance(task_content, progress)
+            return context
+        
         # Provide more specific guidance based on what's missing
         if "no files" in validation_feedback.lower() and analysis_complete:
             # Skip analysis, go straight to implementation
@@ -456,14 +462,48 @@ class TaskValidator:
     
     def _get_implementation_guidance(self, task_content: str, progress: Dict) -> str:
         """Generate generic implementation guidance based on progress"""
-        return """EXECUTE THIS CODE NOW:
+        task_lower = task_content.lower()
+        
+        # Determine what type of files need to be created
+        if "backend" in task_lower or "websocket" in task_lower or "server" in task_lower:
+            file_type = "server implementation"
+            example = """```python
+# YOU ALREADY CHECKED THE FILES! NOW CREATE THE SERVER:
+write_file("server.js", \"\"\"const express = require('express');
+// ADD YOUR SERVER CODE HERE
+// This is just a template - implement the actual functionality
+\"\"\")
+```"""
+        elif "frontend" in task_lower or "interface" in task_lower or "gui" in task_lower:
+            file_type = "frontend files"
+            example = """```python
+# YOU ALREADY CHECKED THE FILES! NOW CREATE THE FRONTEND:
+write_file("index.html", \"\"\"<!DOCTYPE html>
+<!-- ADD YOUR HTML HERE -->
+\"\"\")
 
-```python
-# Skip analysis - you already know what to do
-# Create the necessary files for this task
-# Use write_file() for new files
-# Use edit_file() for modifying existing files
-```
+write_file("app.js", \"\"\"// ADD YOUR JAVASCRIPT HERE
+\"\"\")
+```"""
+        else:
+            file_type = "implementation files"
+            example = """```python
+# YOU ALREADY CHECKED THE FILES! NOW CREATE THE IMPLEMENTATION:
+write_file("implementation.js", \"\"\"// ADD YOUR CODE HERE
+// Implement the actual functionality for the task
+\"\"\")
+```"""
+        
+        return f"""🚨 STOP ANALYZING! START CREATING!
+
+You've already analyzed the project. Now you MUST create {file_type}.
+
+{example}
+
+CRITICAL: You MUST execute write_file() commands RIGHT NOW!
+DO NOT list files again!
+DO NOT check what exists!
+CREATE THE FILES!
 """
     
     def _get_backend_retry_guidance(self) -> str:
