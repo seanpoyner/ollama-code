@@ -904,6 +904,15 @@ class OllamaCodeAgent:
                     timeout=timeout_seconds
                 )
                 
+                # Check if we're working with subtasks
+                if self.thought_loop.current_subtasks:
+                    # Try to validate and advance subtask
+                    if self.thought_loop.mark_subtask_complete(result):
+                        # All subtasks complete - mark main task complete
+                        self.thought_loop.mark_current_task_complete(result)
+                    # Continue with next subtask or task
+                    continue
+                
                 # Check if task was cancelled by user
                 if "Request cancelled" in result:
                     console.print("\n❌ [red]Task cancelled by user[/red]")
