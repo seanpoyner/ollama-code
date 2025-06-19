@@ -384,6 +384,13 @@ class TaskValidator:
         context = f"\n🔄 [RETRY ATTEMPT {attempt_number}]\n\n"
         context += f"❌ Previous attempt: {validation_feedback}\n\n"
         
+        # Special handling for edit_file failures
+        if "edit_file" in validation_feedback and "not in content" in validation_feedback:
+            context += "💡 TIP: The edit_file() function needs exact text match. Consider:\n"
+            context += "   1. Use read_file() first to see the current content\n"
+            context += "   2. Use write_file() to replace the entire file if needed\n"
+            context += "   3. Make sure the search text exactly matches what's in the file\n\n"
+        
         # Check if analysis phase is complete
         analysis_complete = any(step in ['file listing', 'file reading', 'documentation search'] 
                               for step in progress.get('steps_completed', []))

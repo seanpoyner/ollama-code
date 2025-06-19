@@ -215,7 +215,9 @@ def edit_file(filename, search_text, replace_text):
         
         # Check if search text exists
         if search_text not in content:
-            return f"Error: Text to replace not found in {{filename}}"
+            # Provide helpful context about what's in the file
+            preview = content[:200] + "..." if len(content) > 200 else content
+            return f"Error: Text to replace not found in {{filename}}. File starts with:\n{preview}\n\nConsider using write_file() to replace the entire file instead."
         
         # Replace the text
         new_content = content.replace(search_text, replace_text)
