@@ -42,7 +42,7 @@ class TaskDecomposer:
         # Determine task type
         if any(word in task_lower for word in ['backend', 'api', 'server', 'websocket']):
             return self._decompose_backend_task(task_content)
-        elif any(word in task_lower for word in ['frontend', 'interface', 'gui', 'html']):
+        elif any(word in task_lower for word in ['frontend', 'interface', 'gui', 'html', 'app.js', 'javascript']):
             return self._decompose_frontend_task(task_content)
         elif 'test' in task_lower:
             return self._decompose_test_task(task_content)
@@ -224,6 +224,33 @@ button {
             action=f'write_file("public/style.css", """{css_template}""")',
             validation="File 'public/style.css' exists",
             dependencies=["create_html"]
+        ))
+        
+        # 4. Create JavaScript
+        js_template = '''// Basic chat functionality
+function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+    
+    if (message) {
+        console.log('Sending message:', message);
+        // TODO: Implement actual message sending
+        input.value = '';
+    }
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Chat app initialized');
+});'''
+        
+        subtasks.append(ConcreteSubTask(
+            id="create_js",
+            type=SubTaskType.CREATE_FILE,
+            description="Create app.js",
+            action=f'write_file("public/app.js", """{js_template}""")',
+            validation="File 'public/app.js' exists",
+            dependencies=["create_css"]
         ))
         
         return subtasks
