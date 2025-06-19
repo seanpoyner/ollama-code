@@ -52,78 +52,37 @@ class TaskDecomposer:
     def _decompose_backend_task(self, task_content: str) -> List[ConcreteSubTask]:
         """Decompose a backend/server task"""
         subtasks = []
+        task_lower = task_content.lower()
         
-        # 1. Analyze existing structure
+        # 1. Always start by understanding current state
         subtasks.append(ConcreteSubTask(
-            id="analyze_structure",
+            id="analyze_backend",
             type=SubTaskType.ANALYZE,
-            description="Analyze existing project structure",
-            action="files = list_files(); print(files)",
+            description="Analyze current backend structure",
+            action="files = list_files(); print(f'Files: {files}')",
             validation="Shows list"
         ))
         
-        # 2. Check dependencies
-        subtasks.append(ConcreteSubTask(
-            id="check_deps",
-            type=SubTaskType.ANALYZE,
-            description="Check package.json for dependencies",
-            action="content = read_file('package.json') if os.path.exists('package.json') else 'Not found'; print(content)",
-            validation="Either shows package.json content or 'Not found'",
-            dependencies=["analyze_structure"]
-        ))
+        # 2. Determine specific backend needs
+        if 'package' in task_lower or 'dependencies' in task_lower:
+            subtasks.append(ConcreteSubTask(
+                id="check_deps",
+                type=SubTaskType.ANALYZE,
+                description="Check package.json for dependencies",
+                action="import os; content = read_file('package.json') if os.path.exists('package.json') else 'Not found'; print(content)",
+                validation="Shows content or 'Not found'",
+                dependencies=["analyze_backend"]
+            ))
         
-        # 3. Create/update server file
-        if 'websocket' in task_content.lower():
-            server_template = '''const express = require('express');
-const http = require('http');
-const socketIO = require('socket.io');
-
-const app = express();
-const server = http.createServer(app);
-const io = socketIO(server);
-
-app.use(express.static('public'));
-
-io.on('connection', (socket) => {
-    console.log('New client connected');
-    
-    socket.on('message', (data) => {
-        // Handle incoming messages
-        socket.emit('response', { message: 'Response from server' });
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('Client disconnected');
-    });
-});
-
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));'''
-        else:
-            server_template = '''const express = require('express');
-const app = express();
-const PORT = process.env.PORT || 3001;
-
-app.use(express.json());
-app.use(express.static('public'));
-
-// Add your routes here
-app.get('/api/test', (req, res) => {
-    res.json({ message: 'API is working' });
-});
-
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});'''
-        
-        subtasks.append(ConcreteSubTask(
-            id="create_server",
-            type=SubTaskType.CREATE_FILE,
-            description="Create/update server.js file",
-            action=f'write_file("server.js", """{server_template}""")',
-            validation="File 'server.js' exists",
-            dependencies=["check_deps"]
-        ))
+        if 'server' in task_lower or 'api' in task_lower or 'websocket' in task_lower:
+            subtasks.append(ConcreteSubTask(
+                id="implement_server",
+                type=SubTaskType.CREATE_FILE,
+                description="Implement server functionality",
+                action="# Implement server based on requirements",
+                validation="Server implementation complete",
+                dependencies=["analyze_backend"]
+            ))
         
         return subtasks
     
@@ -131,127 +90,67 @@ app.listen(PORT, () => {
         """Decompose a frontend task"""
         subtasks = []
         
-        # 1. Check existing files
+        # Analyze what the task is asking for
+        task_lower = task_content.lower()
+        
+        # First, understand the current state
         subtasks.append(ConcreteSubTask(
-            id="check_frontend",
+            id="analyze_current_state",
             type=SubTaskType.ANALYZE,
-            description="Check for existing frontend files",
-            action="import os; public_files = list_files() if os.path.exists('public') else []; print(f'Public files: {public_files}')",
-            validation="Shows list of public files or empty list"
+            description="Analyze the current state of the project",
+            action="files = list_files(); print(f'Current files: {files}')",
+            validation="Shows list"
         ))
         
-        # 2. Create HTML
-        html_template = '''<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Interface</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="container">
-        <div id="messages" class="messages"></div>
-        <div class="input-area">
-            <input type="text" id="messageInput" placeholder="Type a message...">
-            <button onclick="sendMessage()">Send</button>
-        </div>
-    </div>
-    <script src="app.js"></script>
-</body>
-</html>'''
-        
-        subtasks.append(ConcreteSubTask(
-            id="create_html",
-            type=SubTaskType.CREATE_FILE,
-            description="Create index.html",
-            action=f'write_file("public/index.html", """{html_template}""")',
-            validation="File 'public/index.html' exists",
-            dependencies=["check_frontend"]
-        ))
-        
-        # 3. Create CSS
-        css_template = '''body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 0;
-    background-color: #f0f0f0;
-}
-
-.container {
-    max-width: 800px;
-    margin: 0 auto;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
-
-.messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    background-color: white;
-}
-
-.input-area {
-    display: flex;
-    padding: 20px;
-    background-color: white;
-    border-top: 1px solid #ddd;
-}
-
-#messageInput {
-    flex: 1;
-    padding: 10px;
-    margin-right: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-
-button {
-    padding: 10px 20px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}'''
-        
-        subtasks.append(ConcreteSubTask(
-            id="create_css",
-            type=SubTaskType.CREATE_FILE,
-            description="Create style.css",
-            action=f'write_file("public/style.css", """{css_template}""")',
-            validation="File 'public/style.css' exists",
-            dependencies=["create_html"]
-        ))
-        
-        # 4. Create JavaScript
-        js_template = '''// Basic chat functionality
-function sendMessage() {
-    const input = document.getElementById('messageInput');
-    const message = input.value.trim();
-    
-    if (message) {
-        console.log('Sending message:', message);
-        // TODO: Implement actual message sending
-        input.value = '';
-    }
-}
-
-// Initialize when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Chat app initialized');
-});'''
-        
-        subtasks.append(ConcreteSubTask(
-            id="create_js",
-            type=SubTaskType.CREATE_FILE,
-            description="Create app.js",
-            action=f'write_file("public/app.js", """{js_template}""")',
-            validation="File 'public/app.js' exists",
-            dependencies=["create_css"]
-        ))
+        # Determine what needs to be done based on the task content
+        if 'app.js' in task_lower and ('create' in task_lower or 'missing' in task_lower or 'not' in task_lower):
+            # Task is specifically about creating app.js
+            subtasks.append(ConcreteSubTask(
+                id="create_app_js",
+                type=SubTaskType.CREATE_FILE,
+                description="Create the missing app.js file",
+                action='write_file("public/app.js", "// TODO: Implement chat functionality\\n")',
+                validation="File 'public/app.js' exists",
+                dependencies=["analyze_current_state"]
+            ))
+        elif 'error' in task_lower and 'handling' in task_lower:
+            # Task is about adding error handling
+            subtasks.append(ConcreteSubTask(
+                id="read_current_js",
+                type=SubTaskType.ANALYZE,
+                description="Read the current app.js to understand its structure",
+                action='content = read_file("public/app.js"); print(content)',
+                validation="Shows file content",
+                dependencies=["analyze_current_state"]
+            ))
+            subtasks.append(ConcreteSubTask(
+                id="update_with_error_handling",
+                type=SubTaskType.EDIT_FILE,
+                description="Update app.js with error handling",
+                action='# Use edit_file() to add try-catch blocks and error handling',
+                validation="File updated with error handling",
+                dependencies=["read_current_js"]
+            ))
+        elif 'style' in task_lower or 'css' in task_lower:
+            # Task is about styling
+            subtasks.append(ConcreteSubTask(
+                id="update_styles",
+                type=SubTaskType.CREATE_FILE,
+                description="Create or update CSS styles",
+                action='# Create or update style.css',
+                validation="CSS file exists or updated",
+                dependencies=["analyze_current_state"]
+            ))
+        else:
+            # Generic frontend task - analyze what files might be needed
+            subtasks.append(ConcreteSubTask(
+                id="determine_needed_files",
+                type=SubTaskType.ANALYZE,
+                description="Determine what files need to be created or modified",
+                action='# Analyze the task requirements and current state',
+                validation="Analysis complete",
+                dependencies=["analyze_current_state"]
+            ))
         
         return subtasks
     
@@ -271,9 +170,19 @@ document.addEventListener('DOMContentLoaded', function() {
     
     def _decompose_generic_task(self, task_content: str) -> List[ConcreteSubTask]:
         """Decompose a generic task"""
-        # For generic tasks, don't create subtasks - let the AI handle it naturally
-        # This prevents the infinite loop of meaningless subtasks
-        return []
+        subtasks = []
+        
+        # Always start by understanding the current state
+        subtasks.append(ConcreteSubTask(
+            id="analyze_context",
+            type=SubTaskType.ANALYZE,
+            description="Understand the current context and requirements",
+            action="# Analyze what needs to be done based on the task: " + task_content[:100],
+            validation="Analysis complete"
+        ))
+        
+        # Let the AI figure out the next steps based on the analysis
+        return subtasks
     
     def validate_subtask(self, subtask: ConcreteSubTask, output: str) -> bool:
         """Validate if a subtask completed successfully"""
