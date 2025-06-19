@@ -59,7 +59,7 @@ class TaskDecomposer:
             type=SubTaskType.ANALYZE,
             description="Analyze existing project structure",
             action="files = list_files(); print(files)",
-            validation="Output contains list of files"
+            validation="Shows list"
         ))
         
         # 2. Check dependencies
@@ -270,6 +270,10 @@ button {
             if expected_match:
                 expected = expected_match.group(1)
                 return expected.lower() in output_lower
+        
+        if "shows" in validation_lower and "list" in validation_lower:
+            # Check if output shows a list (has brackets)
+            return "[" in output and "]" in output
         
         if "without errors" in validation_lower:
             return "error" not in output_lower and "exception" not in output_lower
