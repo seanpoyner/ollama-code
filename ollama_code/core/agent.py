@@ -41,6 +41,7 @@ class OllamaCodeAgent:
         self.files_created_in_task = []  # Track files created during current task
         self.doc_assistant = DocumentationAssistant()  # Initialize documentation assistant
         self.thought_loop = ThoughtLoop(self.todo_manager, model_name=model_name, doc_assistant=self.doc_assistant)
+        self.last_compaction_size = 0  # Track when we last compacted
         # Initialize sandbox with confirmation callbacks
         self.sandbox = CodeSandbox(
             write_confirmation_callback=self._confirm_file_write,
@@ -488,6 +489,58 @@ class OllamaCodeAgent:
             logger.error(f"Error handling documentation request: {e}")
             return f"Error processing documentation request: {str(e)}"
 
+    def _estimate_tokens(self, text: str) -> int:
+        """Rough estimate of token count (4 chars per token average)"""
+        return len(text) // 4
+    
+    def _check_and_compact_if_needed(self, max_context_tokens: int = None):
+        """Auto-compact conversation if approaching token limit"""
+        # Model-specific context limits (approximate)
+        model_limits = {
+            'llama3': 8192,
+            'llama3.1': 131072,  # 128k context
+            'llama3.2': 131072,  # 128k context
+            'qwen2.5': 32768,    # 32k context
+            'qwen2.5-coder': 32768,
+            'mistral': 8192,
+            'mixtral': 32768,
+            'deepseek-coder': 16384,
+            'codellama': 16384,
+            'phi3': 4096,
+            'gemma2': 8192,
+            'command-r': 131072,  # 128k context
+        }
+        
+        # Determine limit based on model
+        if max_context_tokens is None:
+            # Try to match model name to get limit
+            model_lower = self.model.lower()
+            for model_prefix, limit in model_limits.items():
+                if model_prefix in model_lower:
+                    max_context_tokens = limit
+                    break
+            else:
+                # Default to conservative 8k if model unknown
+                max_context_tokens = 8192
+        
+        # Estimate current conversation size
+        total_chars = len(self.system_prompt)
+        for msg in self.conversation:
+            total_chars += len(msg['content'])
+        
+        estimated_tokens = self._estimate_tokens(str(total_chars))
+        
+        # Compact if over 75% of limit and grew significantly since last compaction
+        if estimated_tokens > (max_context_tokens * 0.75):
+            # Only compact if conversation grew by at least 25% since last compaction
+            if self.last_compaction_size == 0 or estimated_tokens > self.last_compaction_size * 1.25:
+                logger.info(f"Auto-compacting conversation: ~{estimated_tokens} tokens approaching {max_context_tokens} limit for model {self.model}")
+                result = self.compact_conversation()
+                console.print(f"\n♻️ [dim][Auto-compaction: {result}][/dim]\n")
+                self.last_compaction_size = self._estimate_tokens(str(sum(len(msg['content']) for msg in self.conversation)))
+                return True
+        return False
+
     async def chat(self, user_input, enable_esc_cancel=True, auto_continue=False, skip_function_extraction=False, skip_task_breakdown=False, is_task_execution=False, max_tokens=None):
         """Main chat interface with tool execution"""
         # Check if this needs task decomposition (unless explicitly skipped)
@@ -519,6 +572,9 @@ class OllamaCodeAgent:
         
         # Add user message
         self.conversation.append({'role': 'user', 'content': user_input})
+        
+        # Auto-compact if needed (before sending to LLM)
+        self._check_and_compact_if_needed()
         
         # Prepare messages with system prompt  
         messages = [{'role': 'system', 'content': self.system_prompt}]
