@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  ollama-code:
+    build: .
+    image: ollama-code:latest
+    container_name: ollama-code-test
+    hostname: ollama-code
+    
+    # Keep container running
+    command: tail -f /dev/null
+    
+    # Environment variables
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OLLAMA_HOST=http://localhost:11434
+      # Add your GitHub token here or pass via .env file
+      # - GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here
+    
+    # Volumes for persistence
+    volumes:
+      # Workspace for testing
+      - ./workspace:/home/ollama/workspace
+      # Ollama models (shared with host if needed)
+      - ollama-models:/home/ollama/.ollama/models
+      # Ollama code config
+      - ollama-config:/home/ollama/.ollama/ollama-code
+      # Conversation history
+      - ./ollama-code/.ollama-code:/home/ollama/workspace/.ollama-code
+    
+    # Ports
+    ports:
+      - "11434:11434"  # Ollama API
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+
+volumes:
+  ollama-models:
+  ollama-config:

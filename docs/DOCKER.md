@@ -2,7 +2,33 @@
 
 This guide explains how to run ollama-code in a Docker container for testing and development.
 
-## Quick Start
+## Docker Desktop Users
+
+If you're using Docker Desktop, we have a simplified setup:
+
+### Windows:
+```batch
+run-docker-desktop.bat
+```
+
+### Mac/Linux:
+```bash
+./run-docker-desktop.sh
+```
+
+Then:
+1. Open Docker Desktop → Containers
+2. Click on `ollama-code-desktop`
+3. Click the `Terminal` tab
+4. Run:
+   ```bash
+   ollama serve &
+   ollama pull llama3.2:3b
+   cd /workspace
+   ollama-code
+   ```
+
+## Quick Start (Docker CLI)
 
 1. **Build the Docker image:**
    ```bash

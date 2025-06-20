@@ -86,7 +86,10 @@ echo ""\n\
 RUN echo '#!/bin/bash\n\
 if [ ! -f /usr/local/bin/ollama ]; then\n\
     echo "📦 Installing Ollama..."\n\
-    curl -fsSL https://ollama.com/install.sh | sh\n\
+    # Download and install Ollama binary directly\n\
+    curl -L https://ollama.com/download/ollama-linux-amd64 -o /tmp/ollama\n\
+    chmod +x /tmp/ollama\n\
+    sudo mv /tmp/ollama /usr/local/bin/ollama 2>/dev/null || mv /tmp/ollama /usr/local/bin/ollama\n\
     echo "✅ Ollama installed!"\n\
 else\n\
     echo "✅ Ollama already installed"\n\
@@ -99,5 +102,21 @@ ENV PATH="/home/ollama/ollama-code/venv/bin:$PATH"
 # Default working directory
 WORKDIR /home/ollama/workspace
 
+# Install sudo for the user
+USER root
+RUN apt-get update && apt-get install -y sudo && \
+    echo "ollama ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+USER ollama
+
+# Create an entrypoint script
+RUN echo '#!/bin/bash\n\
+/home/ollama/install-ollama.sh\n\
+/home/ollama/start.sh\n\
+# Keep container running\n\
+exec tail -f /dev/null\n\
+' > /home/ollama/entrypoint.sh && chmod +x /home/ollama/entrypoint.sh
+
 # Entry point
-ENTRYPOINT ["/bin/bash", "-c", "/home/ollama/install-ollama.sh && /home/ollama/start.sh && exec /bin/bash"]
+ENTRYPOINT ["/home/ollama/entrypoint.sh"]
