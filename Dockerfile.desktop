@@ -28,16 +28,27 @@ RUN apt-get update && apt-get install -y \
     tree \
     htop \
     jq \
+    # Shells
+    fish \
+    zsh \
+    # For oh-my-posh
+    fontconfig \
+    locales \
     # Clean up
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Set locale for proper unicode support
+RUN locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
 # Set Python 3.11 as default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
-# Install Ollama directly
-RUN curl -L https://ollama.com/download/ollama-linux-amd64 -o /usr/local/bin/ollama && \
-    chmod +x /usr/local/bin/ollama
+# Install Ollama directly - using the correct download URL
+RUN curl -fsSL https://ollama.ai/install.sh | sh
 
 # Create a non-root user for running ollama-code
 RUN useradd -m -s /bin/bash ollama && \
@@ -49,11 +60,56 @@ RUN mkdir -p /home/ollama/.ollama/logs && \
     mkdir -p /home/ollama/.ollama/ollama-code && \
     mkdir -p /home/ollama/.ollama/models && \
     mkdir -p /home/ollama/workspace && \
-    chown -R ollama:ollama /home/ollama
+    mkdir -p /workspace && \
+    chown -R ollama:ollama /home/ollama && \
+    chown -R ollama:ollama /workspace
+
+# Install oh-my-posh as root
+RUN wget https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-linux-amd64 -O /usr/local/bin/oh-my-posh && \
+    chmod +x /usr/local/bin/oh-my-posh
 
 # Switch to ollama user
 USER ollama
 WORKDIR /home/ollama
+
+# Setup oh-my-posh for the user
+RUN mkdir -p ~/.config/oh-my-posh ~/.config/fish && \
+    # Configure bash
+    echo 'eval "$(oh-my-posh init bash --config https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/kushal.omp.json)"' >> ~/.bashrc && \
+    # Configure fish
+    echo 'oh-my-posh init fish --config https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/kushal.omp.json | source' >> ~/.config/fish/config.fish && \
+    # Configure zsh
+    echo 'eval "$(oh-my-posh init zsh --config https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/kushal.omp.json)"' >> ~/.zshrc && \
+    # Add aliases for bash
+    echo 'alias ll="ls -la"' >> ~/.bashrc && \
+    echo 'alias la="ls -A"' >> ~/.bashrc && \
+    echo 'alias l="ls -CF"' >> ~/.bashrc && \
+    echo 'alias ..="cd .."' >> ~/.bashrc && \
+    echo 'alias ...="cd ../.."' >> ~/.bashrc && \
+    echo 'alias gs="git status"' >> ~/.bashrc && \
+    echo 'alias py="python3"' >> ~/.bashrc && \
+    echo 'alias oc="ollama-code"' >> ~/.bashrc && \
+    # Add aliases for fish
+    echo 'alias ll "ls -la"' >> ~/.config/fish/config.fish && \
+    echo 'alias la "ls -A"' >> ~/.config/fish/config.fish && \
+    echo 'alias l "ls -CF"' >> ~/.config/fish/config.fish && \
+    echo 'alias .. "cd .."' >> ~/.config/fish/config.fish && \
+    echo 'alias ... "cd ../.."' >> ~/.config/fish/config.fish && \
+    echo 'alias gs "git status"' >> ~/.config/fish/config.fish && \
+    echo 'alias py "python3"' >> ~/.config/fish/config.fish && \
+    echo 'alias oc "ollama-code"' >> ~/.config/fish/config.fish && \
+    # Add welcome message for bash
+    echo 'echo ""' >> ~/.bashrc && \
+    echo 'echo "🚀 Ollama Code Docker Environment"' >> ~/.bashrc && \
+    echo 'echo "  Run: ollama serve & (to start Ollama)"' >> ~/.bashrc && \
+    echo 'echo "  Run: ollama-code (to start coding)"' >> ~/.bashrc && \
+    echo 'echo ""' >> ~/.bashrc && \
+    # Add welcome message for fish
+    echo 'echo ""' >> ~/.config/fish/config.fish && \
+    echo 'echo "🚀 Ollama Code Docker Environment"' >> ~/.config/fish/config.fish && \
+    echo 'echo "  Run: ollama serve & (to start Ollama)"' >> ~/.config/fish/config.fish && \
+    echo 'echo "  Run: ollama-code (to start coding)"' >> ~/.config/fish/config.fish && \
+    echo 'echo ""' >> ~/.config/fish/config.fish
 
 # Copy ollama-code repository
 COPY --chown=ollama:ollama . /home/ollama/ollama-code/
