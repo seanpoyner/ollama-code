@@ -197,3 +197,9 @@ cython_debug/
 .claudeignore
 .claude
 CLAUDE.md
+
+# Docker workspace
+workspace/
+
+# Temporary test files
+test_mcp_github.py
