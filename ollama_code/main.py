@@ -271,6 +271,11 @@ async def interactive_loop(agent, conversation_history, todo_manager, prompts_da
                 if progress:
                     console.print(f"\n{progress}")
                 continue
+            elif user_input.lower() == '/compact':
+                # Compact conversation history
+                result = agent.compact_conversation()
+                console.print(f"♻️ [cyan]{result}[/cyan]")
+                continue
             elif user_input.lower() == '/cache':
                 # Show cache statistics
                 stats = agent.doc_assistant.get_cache_stats()

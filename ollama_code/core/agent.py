@@ -191,9 +191,91 @@ class OllamaCodeAgent:
             console.print("[red]Please enter: y/yes, n/no, or a/all[/red]")
 
     async def connect_mcp_servers(self):
-        """Connect to common MCP servers"""
-        # Implementation moved to MCP module
-        logger.info("MCP server connections would be initialized here")
+        """Connect to configured MCP servers"""
+        import json
+        import os
+        from pathlib import Path
+        
+        # Check for MCP configuration file
+        mcp_config_paths = [
+            Path.cwd() / '.ollama-code' / 'mcp_servers.json',
+            Path.home() / '.ollama' / 'ollama-code' / 'mcp_servers.json'
+        ]
+        
+        config_loaded = False
+        for config_path in mcp_config_paths:
+            if config_path.exists():
+                try:
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                        
+                    if 'servers' in config:
+                        console.print(f"\n🔌 [cyan]Loading MCP servers from {config_path.relative_to(Path.home())}[/cyan]")
+                        
+                        for server_name, server_config in config['servers'].items():
+                            if server_config.get('enabled', False):
+                                # Substitute environment variables
+                                if 'env' in server_config:
+                                    for key, value in server_config['env'].items():
+                                        if value.startswith('${') and value.endswith('}'):
+                                            env_var = value[2:-1]
+                                            server_config['env'][key] = os.environ.get(env_var, '')
+                                
+                                console.print(f"  Connecting to {server_name}...")
+                                success = await self.mcp.connect_server(server_name, server_config)
+                                if success:
+                                    console.print(f"  ✅ [green]Connected to {server_name}[/green]")
+                                else:
+                                    console.print(f"  ❌ [red]Failed to connect to {server_name}[/red]")
+                        
+                        config_loaded = True
+                        break
+                        
+                except Exception as e:
+                    logger.error(f"Error loading MCP config from {config_path}: {e}")
+        
+        if not config_loaded:
+            logger.info("No MCP server configuration found")
+    
+    def compact_conversation(self):
+        """Compact the conversation history to reduce tokens"""
+        if len(self.conversation) < 10:
+            return "Conversation too short to compact"
+        
+        # Keep system messages and last few exchanges
+        compacted = []
+        
+        # Keep all system messages
+        for msg in self.conversation:
+            if msg['role'] == 'system':
+                compacted.append(msg)
+        
+        # Generate summary of older messages
+        older_messages = []
+        for msg in self.conversation[:-6]:  # All but last 6 messages
+            if msg['role'] != 'system':
+                role = "User" if msg['role'] == 'user' else "Assistant"
+                # Truncate long messages
+                content = msg['content'][:200] + "..." if len(msg['content']) > 200 else msg['content']
+                older_messages.append(f"{role}: {content}")
+        
+        if older_messages:
+            summary = "Previous conversation summary:\n" + "\n".join(older_messages[:10])
+            compacted.append({
+                'role': 'system',
+                'content': f"[Conversation compacted. {len(older_messages)} older messages summarized]\n{summary}"
+            })
+        
+        # Keep last 6 messages intact
+        for msg in self.conversation[-6:]:
+            if msg['role'] != 'system':
+                compacted.append(msg)
+        
+        old_count = len(self.conversation)
+        self.conversation = compacted
+        new_count = len(self.conversation)
+        
+        return f"Compacted conversation from {old_count} to {new_count} messages"
     
     def show_mcp_tools(self):
         """Display available MCP tools"""
