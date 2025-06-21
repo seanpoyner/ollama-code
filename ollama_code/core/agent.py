@@ -678,7 +678,7 @@ class OllamaCodeAgent:
         if not skip_function_extraction:
             # Simple extraction - just find Python code blocks
             import re
-            code_pattern = r'```python\n(.*?)\n```'
+            code_pattern = r'```python\s*(.*?)\n```'
             code_matches = re.findall(code_pattern, response, re.DOTALL)
             
             if code_matches:
