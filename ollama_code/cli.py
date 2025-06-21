@@ -391,6 +391,9 @@ def main():
     import os
     user_cwd = os.getcwd()
     os.environ['OLLAMA_CODE_USER_CWD'] = user_cwd
+    # Debug output
+    if '--verbose' in sys.argv or '-v' in sys.argv:
+        print(f"[DEBUG] User CWD captured: {user_cwd}")
     
     parser = create_parser()
     args = parser.parse_args()
