@@ -116,7 +116,8 @@ import json
 from pathlib import Path
 
 # Track initial directory and current working directory
-INITIAL_DIR = r'{str(Path.cwd())}'
+# Use OLLAMA_CODE_USER_CWD which is set when ollama-code starts
+INITIAL_DIR = r'{os.environ.get("OLLAMA_CODE_USER_CWD", os.environ.get("PWD", str(Path.cwd())))}'
 CURRENT_DIR = INITIAL_DIR
 
 # Change to user's working directory

@@ -387,6 +387,11 @@ async def run_cli(args):
 
 def main():
     """Main entry point for the CLI"""
+    # Capture the user's working directory immediately
+    import os
+    user_cwd = os.getcwd()
+    os.environ['OLLAMA_CODE_USER_CWD'] = user_cwd
+    
     parser = create_parser()
     args = parser.parse_args()
     
