@@ -23,41 +23,28 @@ class AITaskPlanner:
         Returns: (tasks, explanation)
         """
         # Create a focused prompt for task planning
-        prompt = f"""You are a task planning assistant. Analyze the following request and create a detailed task plan.
+        prompt = f"""You are a task planning assistant. Create MINIMAL tasks for this request.
 
 User Request: {user_request}
 
-Create a list of specific, actionable tasks needed to complete this request. For each task:
-1. Be specific about what needs to be done
-2. Order tasks logically (dependencies first)
-3. Assign priorities: HIGH (critical path), MEDIUM (important but not blocking), LOW (nice to have)
+RULES:
+- Only create tasks if the request needs multiple steps
+- For simple requests like "create a directory", make 1 task
+- Each task must be a concrete action that produces results
+- NO meta-tasks like "analyze requirements" or "plan approach"
+- Focus on what to DO, not what to think about
 
-Format your response as:
+Format:
 TASK_PLAN_START
-1. [HIGH] Task description here
-2. [MEDIUM] Another task description
-3. [LOW] Final task description
+1. [HIGH] Concrete action
 TASK_PLAN_END
 
-Then provide a brief explanation of your approach.
+Brief explanation in 1 sentence.
 
-Important guidelines:
-- Create tasks specific to the actual request, not generic steps
-- Include technical implementation details in task names
-- Typical task count: 4-8 tasks
-- First task should analyze/understand requirements by ACTUALLY exploring files
-- Include "create X file" or "implement Y function" in task names
-- Make tasks concrete and actionable, not vague
-
-CRITICAL FOR ANALYSIS TASKS:
-- When a task involves analyzing, reviewing, or understanding code/files:
-  * The task MUST explicitly state to "read files completely"
-  * Include "thoroughly explore the codebase" in the task description
-  * Mention specific file reading tools (Read, Glob, Grep) in the task
-  * Example: "Thoroughly analyze the codebase structure by reading all relevant files completely using Read tool"
-- NEVER make assumptions about file contents - always read them fully
-- Analysis tasks should emphasize complete exploration over quick scanning
-- If reviewing code, the task should mention reading the entire file, not just parts
+Examples:
+- "create test directory" → 1 task: Create test directory
+- "make python environment" → 1 task: Create Python virtual environment
+- "build web app" → 3-4 tasks: Create server, create frontend, connect them
 """
 
         try:

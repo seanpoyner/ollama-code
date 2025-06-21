@@ -60,33 +60,16 @@ class ThoughtLoop:
     
     def _is_complex_request(self, request: str) -> bool:
         """Determine if a request needs task breakdown"""
-        # Expanded list of complex indicators
+        # Only truly complex multi-step operations
         complex_indicators = [
-            'create.*application',
-            'build.*system',
-            'implement.*feature',
-            'design.*architecture',
-            'setup.*project',
-            'develop.*with',
-            'make.*that.*and',
-            'multiple.*files',
-            'full.*stack',
-            'complete.*solution',
-            'write.*and.*test',
-            'create.*web',
-            'create.*gui',
-            'create.*api',
-            'analyze.*and',
-            'debug.*and.*fix',
-            'refactor.*code',
-            'add.*functionality',
-            'integrate.*with',
-            'multiple.*steps',
-            'requires.*steps',
-            'improve.*project',
-            'enhance.*project',
-            'do.*something.*improve',
-            'several.*tasks'
+            r'build.*full.*application',
+            r'create.*complete.*system',
+            r'develop.*from.*scratch',
+            r'implement.*entire.*project',
+            r'setup.*ci.*cd.*pipeline',
+            r'multiple.*steps.*required',
+            r'step.*by.*step.*guide',
+            r'full.*stack.*application'
         ]
         
         # Simple indicators that suggest it's NOT complex
@@ -98,7 +81,13 @@ class ThoughtLoop:
             r'^list',
             r'^hello',
             r'^hi',
-            r'^\s*$'
+            r'^\s*$',
+            r'^create\s+a\s+\w+\s+(directory|folder|file)',
+            r'^make\s+a\s+\w+\s+(directory|folder|file)',
+            r'^install',
+            r'^run',
+            r'^execute',
+            r'^test'
         ]
         
         request_lower = request.lower()
@@ -111,13 +100,13 @@ class ThoughtLoop:
         if any(re.search(pattern, request_lower) for pattern in complex_indicators):
             return True
         
-        # Check word count and structure complexity
+        # Check word count - only very long requests
         words = request.split()
-        if len(words) > 15:  # Longer requests often need breakdown
+        if len(words) > 50:  # Increased threshold significantly
             return True
         
-        # Check for multiple actions (and, then, also, plus)
-        if any(word in request_lower for word in [' and ', ' then ', ' also ', ' plus ']):
+        # Check for multiple numbered steps or many bullet points
+        if len(re.findall(r'(?:\n\d+\.|\n[-*])', request)) > 3:
             return True
         
         return False

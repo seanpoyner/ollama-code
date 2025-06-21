@@ -39,15 +39,38 @@ class TaskDecomposer:
         """Decompose a task into concrete subtasks"""
         task_lower = task_content.lower()
         
-        # Determine task type
-        if any(word in task_lower for word in ['backend', 'api', 'server', 'websocket']):
-            return self._decompose_backend_task(task_content)
-        elif any(word in task_lower for word in ['frontend', 'interface', 'gui', 'html', 'app.js', 'javascript']):
-            return self._decompose_frontend_task(task_content)
-        elif 'test' in task_lower:
-            return self._decompose_test_task(task_content)
-        else:
-            return self._decompose_generic_task(task_content)
+        # Simple tasks that should NOT be decomposed
+        simple_patterns = [
+            r'create.*(?:directory|folder|dir)',
+            r'make.*(?:directory|folder|dir)',
+            r'create.*environment',
+            r'setup.*(?:venv|virtualenv)',
+            r'install',
+            r'write.*file',
+            r'create.*file'
+        ]
+        
+        # Check if it's a simple task
+        if any(re.search(pattern, task_lower) for pattern in simple_patterns):
+            return [ConcreteSubTask(
+                id="task-1",
+                type=SubTaskType.EXECUTE_CMD,
+                description=task_content,
+                action=f"# Execute the task: {task_content}",
+                validation=f"Task '{task_content}' is complete",
+                dependencies=[],
+                completed=False
+            )]
+        
+        # Only use specialized decomposition for truly complex tasks
+        if 'full' in task_lower and 'application' in task_lower:
+            if any(word in task_lower for word in ['backend', 'api', 'server']):
+                return self._decompose_backend_task(task_content)
+            elif any(word in task_lower for word in ['frontend', 'interface', 'gui']):
+                return self._decompose_frontend_task(task_content)
+        
+        # Default to generic for everything else
+        return self._decompose_generic_task(task_content)
     
     def _decompose_backend_task(self, task_content: str) -> List[ConcreteSubTask]:
         """Decompose a backend/server task"""
@@ -170,19 +193,16 @@ class TaskDecomposer:
     
     def _decompose_generic_task(self, task_content: str) -> List[ConcreteSubTask]:
         """Decompose a generic task"""
-        subtasks = []
-        
-        # Always start by understanding the current state
-        subtasks.append(ConcreteSubTask(
-            id="analyze_context",
-            type=SubTaskType.ANALYZE,
-            description="Understand the current context and requirements",
-            action="# Analyze what needs to be done based on the task: " + task_content[:100],
-            validation="Analysis complete"
-        ))
-        
-        # Let the AI figure out the next steps based on the analysis
-        return subtasks
+        # For generic tasks, just return the task itself
+        return [ConcreteSubTask(
+            id="task-1",
+            type=SubTaskType.EXECUTE_CMD,
+            description=task_content,
+            action=f"# Complete the task: {task_content}",
+            validation=f"Task complete",
+            dependencies=[],
+            completed=False
+        )]
     
     def validate_subtask(self, subtask: ConcreteSubTask, output: str) -> bool:
         """Validate if a subtask completed successfully"""
