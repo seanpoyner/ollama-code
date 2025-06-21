@@ -121,6 +121,7 @@ CURRENT_DIR = INITIAL_DIR
 
 # Change to user's working directory
 os.chdir(INITIAL_DIR)
+print(f"📂 Working directory: {{INITIAL_DIR}}")
 
 # Confirmation file for write operations
 CONFIRMATION_FILE = r'{confirmation_file}'
@@ -247,6 +248,29 @@ def list_files(directory="."):
     except Exception as e:
         print(f"Failed to list files: {{e}}")
         return f"Failed to list files: {{e}}"
+
+def cd(directory):
+    \"\"\"Change the current working directory persistently\"\"\"
+    try:
+        # Handle relative and absolute paths
+        if os.path.isabs(directory):
+            target = directory
+        else:
+            target = os.path.join(os.getcwd(), directory)
+        
+        # Create directory if it doesn't exist
+        if not os.path.exists(target):
+            os.makedirs(target, exist_ok=True)
+            print(f"📁 Created directory: {{target}}")
+        
+        # Change to the directory
+        os.chdir(target)
+        new_cwd = os.getcwd()
+        print(f"📂 Changed to: {{new_cwd}}")
+        return new_cwd
+    except Exception as e:
+        print(f"Failed to change directory: {{e}}")
+        return f"Failed to change directory: {{e}}"
 
 def bash(command):
     \"\"\"Execute a bash/shell command\"\"\"

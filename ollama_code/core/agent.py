@@ -69,14 +69,18 @@ class OllamaCodeAgent:
         full_prompt += "1. Check if file exists: os.path.exists() or read_file()\n"
         full_prompt += "2. For NEW files: use write_file()\n"
         full_prompt += "3. For EXISTING files: use edit_file() for small changes\n"
-        full_prompt += "4. Use ```python code blocks for ALL file operations\n\n"
+        full_prompt += "4. Use ```python code blocks for ALL file operations\n"
+        full_prompt += "5. Use cd() to change directories PERSISTENTLY\n\n"
         full_prompt += "Examples:\n"
         full_prompt += "```python\n"
+        full_prompt += '# Change directory (persists for all subsequent operations):\n'
+        full_prompt += 'cd("project-name")\n\n'
         full_prompt += '# Create new file:\n'
         full_prompt += 'write_file("app.js", """console.log("Hello");""")\n\n'
         full_prompt += '# Edit existing file:\n'
         full_prompt += 'edit_file("server.js", "Hello World", "Welcome!")\n'
         full_prompt += "```\n\n"
+        full_prompt += "IMPORTANT: Always use cd() instead of bash('cd ...') to change directories!\n\n"
         
         # Add documentation tools info
         full_prompt += "## Documentation Tools Available\n"
