@@ -34,6 +34,7 @@ from .core.conversation import ConversationHistory
 from .utils.logging import setup_logging
 from .utils.messages import get_message
 from .utils.config import load_prompts, load_ollama_md, load_ollama_code_config
+from .cli import get_ollama_client
 
 logger = setup_logging()
 
@@ -92,12 +93,38 @@ async def main(resume=False):
     
     # Check if Ollama is running
     try:
-        models = ollama.list()
+        ollama_client = get_ollama_client()
+        response = ollama_client.list()
+        # Handle both dict and object responses
+        if hasattr(response, 'models'):
+            models = response
+        else:
+            # Create object-like response for consistency
+            from types import SimpleNamespace
+            models = SimpleNamespace(models=response.get('models', []))
+        
         console.print(get_message('connection.ollama_connected'))
         logger.info(f"Connected to Ollama, found {len(models.models)} models")
         
     except Exception as e:
-        console.print(get_message('connection.ollama_not_connected'))
+        # Try to connect anyway - list() might fail but chat() could work
+        try:
+            # Test connection with a simple request using client
+            test_response = ollama_client.generate(model='llama3.2:3b', prompt='test', options={'num_predict': 1})
+            console.print("✅ [green]Connected to Ollama (model listing unavailable)[/green]")
+            
+            # Ask user to specify model directly
+            console.print("\n[yellow]Model auto-detection failed. Please specify your model.[/yellow]")
+            console.print("[dim]Common models: llama3.2:3b, qwen2.5-coder:7b, codellama:7b[/dim]")
+            
+            model_name = Prompt.ask("Enter model name", default="llama3.2:3b")
+            
+            # Create a fake models response
+            from types import SimpleNamespace
+            models = SimpleNamespace(models=[SimpleNamespace(model=model_name)])
+            
+        except:
+            console.print(get_message('connection.ollama_not_connected'))
         console.print(f"Error: {e}")  # Keep raw error for debugging
         console.print(get_message('connection.ollama_start_hint'))
         logger.error(f"Failed to connect to Ollama: {e}")
@@ -180,7 +207,7 @@ async def main(resume=False):
     conversation_history = ConversationHistory()
     
     # Initialize agent with prompts data, OLLAMA.md, and config
-    agent = OllamaCodeAgent(model_name, prompts_data, ollama_md, ollama_config, todo_manager)
+    agent = OllamaCodeAgent(model_name, prompts_data, ollama_md, ollama_config, todo_manager, ollama_client)
     
     # Connect to MCP servers
     await agent.connect_mcp_servers()

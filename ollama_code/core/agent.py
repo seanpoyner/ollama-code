@@ -24,8 +24,9 @@ console = Console()
 
 
 class OllamaCodeAgent:
-    def __init__(self, model_name, prompts_data=None, ollama_md=None, ollama_config=None, todo_manager=None):
+    def __init__(self, model_name, prompts_data=None, ollama_md=None, ollama_config=None, todo_manager=None, ollama_client=None):
         self.model = model_name
+        self.ollama_client = ollama_client or ollama.Client()
         self.mcp = FastMCPIntegration()
         self.conversation = []
         self.prompts_data = prompts_data
@@ -621,7 +622,7 @@ class OllamaCodeAgent:
                         'stop': ['```\n\n```', '\n\n##', '\n\nStep']  # Stop at natural breaks
                     }
                 
-                stream = ollama.chat(**chat_options)
+                stream = self.ollama_client.chat(**chat_options)
                 
                 chunk_count = 0
                 last_update = time.time()

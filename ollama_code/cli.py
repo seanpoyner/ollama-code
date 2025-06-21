@@ -6,6 +6,10 @@ import sys
 import os
 from pathlib import Path
 from typing import Optional
+import warnings
+
+# Suppress deprecation warnings from ollama package about model_fields
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="ollama._types")
 
 import ollama
 from rich.console import Console
@@ -18,6 +22,44 @@ from .utils.config import load_prompts, load_ollama_md, load_ollama_code_config
 from .utils.messages import get_message
 
 console = Console()
+
+
+def get_ollama_client():
+    """Get an Ollama client configured for the current environment"""
+    # Check if OLLAMA_HOST is already set
+    if os.getenv('OLLAMA_HOST'):
+        host = os.getenv('OLLAMA_HOST')
+        console.print(f"🔗 [dim]Using OLLAMA_HOST: {host}[/dim]")
+        return ollama.Client(host=host)
+    
+    # Check if we're in WSL
+    if 'microsoft' in os.uname().release.lower() or 'WSL' in os.uname().release:
+        # We're in WSL, try to connect to Windows host
+        # Get the Windows host IP
+        try:
+            import subprocess
+            result = subprocess.run(['ip', 'route', 'show'], capture_output=True, text=True)
+            for line in result.stdout.split('\n'):
+                if 'default' in line:
+                    windows_ip = line.split()[2]
+                    # Try Windows host first
+                    try:
+                        test_client = ollama.Client(host=f'http://{windows_ip}:11434')
+                        # Test with a simple ping instead of list()
+                        import requests
+                        response = requests.get(f'http://{windows_ip}:11434/api/tags', timeout=2)
+                        if response.status_code == 200:
+                            console.print(f"🔗 [dim]Connected to Ollama on Windows host ({windows_ip})[/dim]")
+                            return test_client
+                    except:
+                        pass
+                    break
+        except:
+            pass
+    
+    # Try default client (localhost)
+    console.print("🔗 [dim]Trying localhost connection...[/dim]")
+    return ollama.Client()
 
 
 def create_parser():
@@ -175,8 +217,13 @@ async def handle_single_prompt(agent: OllamaCodeAgent, prompt: str):
 async def list_available_models():
     """List all available Ollama models"""
     try:
-        response = ollama.list()
-        models = response.get('models', [])
+        ollama_client = get_ollama_client()
+        response = ollama_client.list()
+        # Handle both dict and object responses
+        if hasattr(response, 'models'):
+            models = response.models
+        else:
+            models = response.get('models', [])
         
         if not models:
             console.print("❌ [red]No models available. Please pull a model first.[/red]")
@@ -191,9 +238,15 @@ async def list_available_models():
         table.add_column("Modified", style="blue")
         
         for model in models:
-            name = model.get('name', 'Unknown')
-            size = f"{model.get('size', 0) / 1e9:.1f}GB"
-            modified = model.get('modified_at', 'Unknown')[:10]
+            # Handle both dict and object model formats
+            if hasattr(model, 'model'):
+                name = model.model
+                size = f"{getattr(model, 'size', 0) / 1e9:.1f}GB" if hasattr(model, 'size') else "Unknown"
+                modified = str(getattr(model, 'modified_at', 'Unknown'))[:10] if hasattr(model, 'modified_at') else "Unknown"
+            else:
+                name = model.get('name', model.get('model', 'Unknown'))
+                size = f"{model.get('size', 0) / 1e9:.1f}GB"
+                modified = model.get('modified_at', 'Unknown')[:10]
             table.add_row(name, size, modified)
         
         console.print(table)
@@ -210,6 +263,7 @@ async def run_cli(args):
         return
     
     # Setup environment
+    global console
     if args.no_color:
         console = Console(no_color=True)
     
@@ -237,29 +291,61 @@ async def run_cli(args):
     
     # Check Ollama connection
     try:
-        ollama.list()
-    except:
-        console.print("❌ [red]Cannot connect to Ollama server[/red]")
-        console.print("Please start Ollama: ollama serve")
+        ollama_client = get_ollama_client()
+        # Try a simple test first
+        try:
+            ollama_client.list()
+        except Exception as list_error:
+            # If list() fails, that's okay as long as we can still connect
+            if not args.quiet:
+                console.print(f"⚠️  [yellow]Note: Could not list models ({type(list_error).__name__}), but connection seems okay[/yellow]")
+    except Exception as e:
+        console.print(f"❌ [red]Cannot connect to Ollama server: {type(e).__name__}: {e}[/red]")
+        console.print("\n💡 [yellow]Please ensure Ollama is running:[/yellow]")
+        console.print("    [dim]Windows: Open Ollama from the system tray[/dim]")
+        console.print("    [dim]Linux/Mac: Run 'ollama serve'[/dim]")
+        console.print("\n    [dim]Or set OLLAMA_HOST environment variable:[/dim]")
+        console.print("    [dim]export OLLAMA_HOST=http://localhost:11434[/dim]")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
         return
     
     # Select model
     model_name = args.model
     if not model_name:
         # Try to get default model
-        import ollama
         try:
-            response = ollama.list()
-            models = response.get('models', [])
+            response = ollama_client.list()
+            # Handle both dict and object responses
+            if hasattr(response, 'models'):
+                models = response.models
+            else:
+                models = response.get('models', [])
+            
             if models:
-                model_name = models[0]['name']
-                if not args.quiet:
+                # Handle both dict and object model formats
+                if hasattr(models[0], 'model'):
+                    model_name = models[0].model
+                else:
+                    model_name = models[0].get('name', models[0].get('model', None))
+                
+                if model_name and not args.quiet:
                     console.print(f"🤖 [cyan]Using model: {model_name}[/cyan]")
             else:
                 console.print("❌ [red]No models available. Please pull a model first.[/red]")
+                console.print("💡 [yellow]Tip: You can specify a model with --model <model_name>[/yellow]")
+                console.print("    [dim]Example: ollama-code --model llama3.2:3b[/dim]")
                 return
-        except:
-            console.print("❌ [red]Error selecting model[/red]")
+        except Exception as e:
+            console.print(f"⚠️  [yellow]Warning: Could not list models: {type(e).__name__}[/yellow]")
+            if args.verbose:
+                console.print(f"    [dim]{e}[/dim]")
+            
+            # Ask user to specify a model
+            console.print("\n💡 [yellow]Please specify a model to use.[/yellow]")
+            console.print("    [dim]Example: ollama-code --model llama3.2:3b[/dim]")
+            console.print("    [dim]Or pull a model first: ollama pull llama3.2:3b[/dim]")
             return
     
     # Create agent
@@ -268,7 +354,8 @@ async def run_cli(args):
         prompts_data=prompts_data,
         ollama_md=ollama_md,
         ollama_config=ollama_config,
-        todo_manager=todo_manager
+        todo_manager=todo_manager,
+        ollama_client=ollama_client
     )
     
     # Apply settings from arguments
@@ -312,7 +399,7 @@ def main():
         console.print("\n👋 Goodbye!")
     except Exception as e:
         console.print(f"❌ [red]Error: {e}[/red]")
-        if args.verbose:
+        if hasattr(args, 'verbose') and args.verbose:
             import traceback
             traceback.print_exc()
         sys.exit(1)
