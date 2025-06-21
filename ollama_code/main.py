@@ -39,6 +39,92 @@ from .cli import get_ollama_client
 logger = setup_logging()
 
 
+async def select_model(models):
+    """Select a model from available models with interactive menu"""
+    # Extract model names properly
+    try:
+        available_models = []
+        embedding_models = ['nomic-embed-text', 'mxbai-embed-large', 'all-minilm', 'embed']  # Common embedding models
+        
+        # Handle both response formats
+        if hasattr(models, 'models'):
+            model_list = models.models
+        else:
+            model_list = models
+            
+        for model in model_list:
+            # Extract the model name from the Model object
+            if hasattr(model, 'model'):
+                model_name = model.model
+            elif isinstance(model, dict):
+                model_name = model.get('name', model.get('model', str(model)))
+            else:
+                model_name = str(model)
+            
+            # Skip embedding models - they can't be used for chat
+            is_embedding = any(embed in model_name.lower() for embed in embedding_models)
+            if is_embedding:
+                logger.info(f"Skipping embedding model: {model_name}")
+                continue
+                
+            available_models.append(model_name)
+            
+        if not available_models:
+            console.print(get_message('models.no_models'))
+            console.print(get_message('models.model_pull_example'))
+            console.print("\n[yellow]Note: Embedding models like 'nomic-embed-text' cannot be used for chat.[/yellow]")
+            console.print("[yellow]Pull a chat model like: ollama pull llama3 or ollama pull qwen2.5-coder[/yellow]")
+            return None
+            
+    except Exception as e:
+        console.print(get_message('errors.parsing_models', error=e))
+        logger.error(f"Error parsing models: {e}")
+        return None
+    
+    # If only one model, use it
+    if len(available_models) == 1:
+        model_name = available_models[0]
+        console.print(get_message('models.model_selected', model_name=model_name))
+        return model_name
+    
+    # Display available models and let user choose
+    console.print(get_message('models.available_models_header'))
+    models_table = Table(style="cyan")
+    models_table.add_column(get_message('table_headers.models.index'), style="bold yellow")
+    models_table.add_column(get_message('table_headers.models.model'), style="white")
+    
+    for i, model in enumerate(available_models, 1):
+        models_table.add_row(str(i), model)
+    
+    console.print(models_table)
+    
+    # Let user select model
+    while True:
+        try:
+            choice = Prompt.ask(
+                get_message('models.model_selection_prompt'), 
+                default="1"
+            )
+            
+            if choice.isdigit():
+                index = int(choice) - 1
+                if 0 <= index < len(available_models):
+                    model_name = available_models[index]
+                    break
+                else:
+                    console.print(get_message('models.invalid_selection'))
+            else:
+                console.print(get_message('models.enter_number'))
+                
+        except KeyboardInterrupt:
+            console.print("\n" + get_message('app.goodbye'))
+            return None
+    
+    console.print(get_message('models.model_selected', model_name=model_name))
+    logger.info(f"Selected model: {model_name}")
+    return model_name
+
+
 async def main(resume=False):
     console.print(Panel(
         Text(get_message('app.title'), justify="center"),
@@ -130,70 +216,10 @@ async def main(resume=False):
         logger.error(f"Failed to connect to Ollama: {e}")
         return
     
-    # Extract model names properly
-    try:
-        available_models = []
-        embedding_models = ['nomic-embed-text', 'mxbai-embed-large', 'all-minilm']  # Common embedding models
-        
-        for model in models.models:
-            # Extract the model name from the Model object
-            model_name = model.model if hasattr(model, 'model') else str(model)
-            
-            # Skip embedding models - they can't be used for chat
-            is_embedding = any(embed in model_name.lower() for embed in embedding_models)
-            if is_embedding:
-                logger.info(f"Skipping embedding model: {model_name}")
-                continue
-                
-            available_models.append(model_name)
-            
-        if not available_models:
-            console.print(get_message('models.no_models'))
-            console.print(get_message('models.model_pull_example'))
-            console.print("\n[yellow]Note: Embedding models like 'nomic-embed-text' cannot be used for chat.[/yellow]")
-            console.print("[yellow]Pull a chat model like: ollama pull llama3 or ollama pull qwen2.5-coder[/yellow]")
-            return
-            
-    except Exception as e:
-        console.print(get_message('errors.parsing_models', error=e))
-        logger.error(f"Error parsing models: {e}")
+    # Use the select_model function to handle model selection
+    model_name = await select_model(models)
+    if not model_name:
         return
-    
-    # Display available models and let user choose
-    console.print(get_message('models.available_models_header'))
-    models_table = Table(style="cyan")
-    models_table.add_column(get_message('table_headers.models.index'), style="bold yellow")
-    models_table.add_column(get_message('table_headers.models.model'), style="white")
-    
-    for i, model in enumerate(available_models, 1):
-        models_table.add_row(str(i), model)
-    
-    console.print(models_table)
-    
-    # Let user select model
-    while True:
-        try:
-            choice = Prompt.ask(
-                get_message('models.model_selection_prompt'), 
-                default="1"
-            )
-            
-            if choice.isdigit():
-                index = int(choice) - 1
-                if 0 <= index < len(available_models):
-                    model_name = available_models[index]
-                    break
-                else:
-                    console.print(get_message('models.invalid_selection'))
-            else:
-                console.print(get_message('models.enter_number'))
-                
-        except KeyboardInterrupt:
-            console.print("\n" + get_message('app.goodbye'))
-            return
-    
-    console.print(get_message('models.model_selected', model_name=model_name))
-    logger.info(f"Selected model: {model_name}")
     
     # Double-check the selected model is not an embedding model
     embedding_models = ['nomic-embed-text', 'mxbai-embed-large', 'all-minilm', 'embed']

@@ -324,14 +324,11 @@ async def run_cli(args):
                 models = response.get('models', [])
             
             if models:
-                # Handle both dict and object model formats
-                if hasattr(models[0], 'model'):
-                    model_name = models[0].model
-                else:
-                    model_name = models[0].get('name', models[0].get('model', None))
-                
-                if model_name and not args.quiet:
-                    console.print(f"🤖 [cyan]Using model: {model_name}[/cyan]")
+                # Otherwise, let the user select from available models
+                from .main import select_model
+                model_name = await select_model(models)
+                if not model_name:
+                    return
             else:
                 console.print("❌ [red]No models available. Please pull a model first.[/red]")
                 console.print("💡 [yellow]Tip: You can specify a model with --model <model_name>[/yellow]")

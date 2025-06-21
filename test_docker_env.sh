@@ -85,7 +85,17 @@ else
 fi
 
 echo ""
-echo "7. MCP Configuration:"
+echo "7. Testing Model Selection Fix:"
+echo "-------------------------------"
+if [ -f "/home/ollama/ollama-code/test_model_selection.py" ]; then
+    cd /home/ollama/ollama-code
+    python3 test_model_selection.py
+else
+    echo "⚠️  Model selection test script not found"
+fi
+
+echo ""
+echo "9. MCP Configuration:"
 echo "--------------------"
 if [ -f "$HOME/workspace/.ollama-code/mcp_servers.json" ]; then
     echo "✅ MCP config found at: $HOME/workspace/.ollama-code/mcp_servers.json"
@@ -96,8 +106,8 @@ else
 fi
 
 echo ""
-echo "8. Environment Variables:"
-echo "------------------------"
+echo "10. Environment Variables:"
+echo "-------------------------"
 echo "OLLAMA_HOST: ${OLLAMA_HOST:-Not set}"
 echo "GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN:+[SET]}"
 echo "PATH: $PATH"

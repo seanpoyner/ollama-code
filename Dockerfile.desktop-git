@@ -1,0 +1,202 @@
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    # Python
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    python3-dev \
+    build-essential \
+    # Git
+    git \
+    # Network tools
+    curl \
+    wget \
+    # Editors
+    nano \
+    vim \
+    # Utilities
+    sudo \
+    tree \
+    htop \
+    jq \
+    # Shells
+    fish \
+    zsh \
+    # For oh-my-posh
+    fontconfig \
+    locales \
+    # Clean up
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Generate locale
+RUN locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+
+# Install Ollama
+RUN curl -fsSL https://ollama.ai/install.sh | sh
+
+# Create or configure ollama user
+RUN if ! id -u ollama >/dev/null 2>&1; then \
+        useradd -m -s /bin/bash ollama; \
+    fi && \
+    echo "ollama:ollama" | chpasswd && \
+    echo "ollama ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Create necessary directories
+RUN mkdir -p /home/ollama/.ollama/logs && \
+    mkdir -p /home/ollama/.ollama/models && \
+    mkdir -p /home/ollama/workspace && \
+    mkdir -p /workspace && \
+    chown -R ollama:ollama /home/ollama && \
+    chown -R ollama:ollama /workspace
+
+# Install oh-my-posh
+RUN wget https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-linux-amd64 -O /usr/local/bin/oh-my-posh && \
+    chmod +x /usr/local/bin/oh-my-posh
+
+# Switch to ollama user
+USER ollama
+WORKDIR /home/ollama
+
+# Setup shells with oh-my-posh
+RUN mkdir -p ~/.config/oh-my-posh ~/.config/fish && \
+    # Configure bash with oh-my-posh atomic theme
+    echo 'eval "$(oh-my-posh init bash --config https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/atomic.omp.json)"' >> ~/.bashrc && \
+    # Configure fish with simple prompt (oh-my-posh has compatibility issues)
+    echo '# Simple colored prompt for fish' >> ~/.config/fish/config.fish && \
+    echo 'function fish_prompt' >> ~/.config/fish/config.fish && \
+    echo '    set_color cyan' >> ~/.config/fish/config.fish && \
+    echo '    echo -n (date "+%H:%M:%S")' >> ~/.config/fish/config.fish && \
+    echo '    set_color normal' >> ~/.config/fish/config.fish && \
+    echo '    echo -n " | "' >> ~/.config/fish/config.fish && \
+    echo '    set_color yellow' >> ~/.config/fish/config.fish && \
+    echo '    echo -n (pwd | sed "s|$HOME|~|")' >> ~/.config/fish/config.fish && \
+    echo '    set_color normal' >> ~/.config/fish/config.fish && \
+    echo '    echo -n " ❯ "' >> ~/.config/fish/config.fish && \
+    echo 'end' >> ~/.config/fish/config.fish && \
+    # Configure zsh with oh-my-posh atomic theme
+    echo 'eval "$(oh-my-posh init zsh --config https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/atomic.omp.json)"' >> ~/.zshrc && \
+    # Add common aliases
+    echo 'alias ll="ls -la"' >> ~/.bashrc && \
+    echo 'alias la="ls -A"' >> ~/.bashrc && \
+    echo 'alias oc="ollama-code"' >> ~/.bashrc && \
+    echo 'alias ll "ls -la"' >> ~/.config/fish/config.fish && \
+    echo 'alias la "ls -A"' >> ~/.config/fish/config.fish && \
+    echo 'alias oc "ollama-code"' >> ~/.config/fish/config.fish
+
+# Clone ollama-code from GitHub
+RUN git clone https://github.com/seanpoyner/ollama-code.git /home/ollama/ollama-code
+
+# Install ollama-code
+RUN cd /home/ollama/ollama-code && \
+    # Create a README.md if it doesn't exist (setup.py depends on it)
+    if [ ! -f README.md ]; then \
+        echo "# Ollama Code" > README.md && \
+        echo "A powerful coding assistant powered by Ollama" >> README.md; \
+    fi && \
+    # Create setup.py if it doesn't exist
+    if [ ! -f setup.py ]; then \
+        echo 'from setuptools import setup, find_packages' > setup.py && \
+        echo '' >> setup.py && \
+        echo 'setup(' >> setup.py && \
+        echo '    name="ollama-code",' >> setup.py && \
+        echo '    version="0.1.0",' >> setup.py && \
+        echo '    packages=find_packages(),' >> setup.py && \
+        echo '    install_requires=[' >> setup.py && \
+        echo '        "ollama",' >> setup.py && \
+        echo '        "rich",' >> setup.py && \
+        echo '        "requests",' >> setup.py && \
+        echo '        "pyyaml",' >> setup.py && \
+        echo '        "chromadb",' >> setup.py && \
+        echo '        "docker",' >> setup.py && \
+        echo '        "fastmcp",' >> setup.py && \
+        echo '    ],' >> setup.py && \
+        echo '    entry_points={' >> setup.py && \
+        echo '        "console_scripts": [' >> setup.py && \
+        echo '            "ollama-code=ollama_code.cli:main",' >> setup.py && \
+        echo '        ],' >> setup.py && \
+        echo '    },' >> setup.py && \
+        echo ')' >> setup.py; \
+    fi && \
+    python3 -m venv venv && \
+    . venv/bin/activate && \
+    pip install --upgrade pip && \
+    # Install in development mode to ensure package is found
+    pip install -e . && \
+    # The installed script should be in venv/bin/ollama-code
+    if [ -f venv/bin/ollama-code ]; then \
+        sudo ln -sf /home/ollama/ollama-code/venv/bin/ollama-code /usr/local/bin/ollama-code; \
+    else \
+        # Fallback: create a wrapper script
+        echo '#!/bin/bash' > ~/ollama-code-wrapper && \
+        echo 'cd /home/ollama/ollama-code' >> ~/ollama-code-wrapper && \
+        echo 'source /home/ollama/ollama-code/venv/bin/activate' >> ~/ollama-code-wrapper && \
+        echo 'export PYTHONPATH=/home/ollama/ollama-code:$PYTHONPATH' >> ~/ollama-code-wrapper && \
+        echo 'python -m ollama_code.cli "$@"' >> ~/ollama-code-wrapper && \
+        chmod +x ~/ollama-code-wrapper && \
+        sudo cp ~/ollama-code-wrapper /usr/local/bin/ollama-code && \
+        sudo chmod +x /usr/local/bin/ollama-code; \
+    fi
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+echo "🐳 Ollama Code Docker Environment"\n\
+echo "================================="\n\
+echo ""\n\
+echo "To get started:"\n\
+echo "  1. Pull a model: ollama pull llama3.2:3b"\n\
+echo "  2. Run: ollama-code"\n\
+echo ""\n\
+echo "Git repository: https://github.com/seanpixel/ollama-code"\n\
+echo ""\n\
+' > /home/ollama/startup.sh && chmod +x /home/ollama/startup.sh
+
+# Create entrypoint script
+RUN echo '#!/bin/bash\n\
+# Ensure log directory exists\n\
+mkdir -p /home/ollama/.ollama/logs\n\
+\n\
+# Show startup message\n\
+/home/ollama/startup.sh\n\
+\n\
+# Start Ollama in the background\n\
+echo "Starting Ollama server..."\n\
+ollama serve > /home/ollama/.ollama/logs/ollama.log 2>&1 &\n\
+OLLAMA_PID=$!\n\
+\n\
+# Wait for Ollama to start\n\
+echo "Waiting for Ollama to start..."\n\
+for i in {1..30}; do\n\
+    if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then\n\
+        echo "✅ Ollama server started successfully"\n\
+        echo ""\n\
+        break\n\
+    fi\n\
+    sleep 1\n\
+done\n\
+\n\
+if ! curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then\n\
+    echo "❌ Failed to start Ollama server"\n\
+    echo "Check logs: cat /home/ollama/.ollama/logs/ollama.log"\n\
+fi\n\
+\n\
+# Keep container running\n\
+tail -f /dev/null\n\
+' > /home/ollama/entrypoint.sh && chmod +x /home/ollama/entrypoint.sh
+
+# Default working directory
+WORKDIR /home/ollama/workspace
+
+# Use entrypoint
+ENTRYPOINT ["/home/ollama/entrypoint.sh"]
