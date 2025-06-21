@@ -95,14 +95,19 @@ check_and_pull_model() {\n\
 # Pull required models\n\
 check_and_pull_model "llama3.2:3b"\n\
 check_and_pull_model "qwen2.5:0.5b"\n\
-check_and_pull_model "deepseek-coder:6.7b"\n\
+check_and_pull_model "qwen2.5-coder:7b"\n\
 check_and_pull_model "nomic-embed-text"\n\
 \n\
+echo ""\n\
+echo "✨ All models pulled successfully!"\n\
 echo ""\n\
 echo "Available models:"\n\
 ollama list\n\
 echo ""\n\
-echo "Ready! Run: ollama-code"\n\
+echo "🚀 Ready! Run: ollama-code"\n\
+echo ""\n\
+echo "📝 Note: First startup pulls models and may take several minutes."\n\
+echo "    Subsequent startups will be much faster."\n\
 echo ""\n\
 \n\
 # Keep container running\n\
