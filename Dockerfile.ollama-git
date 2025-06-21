@@ -54,8 +54,59 @@ RUN echo '#!/bin/bash\ncd /home/ollama/ollama-code\nsource venv/bin/activate\nex
     chmod +x ~/ollama-code.sh && \
     sudo ln -sf /home/ollama/ollama-code.sh /usr/local/bin/ollama-code
 
-# Startup script
-RUN echo '#!/bin/bash\necho "🐳 Ollama Code Docker Environment (Atomic Theme)"\necho ""\nollama serve > ~/.ollama/logs/ollama.log 2>&1 &\nsleep 2\necho "Commands:"\necho "  ollama pull llama3.2:3b"\necho "  ollama-code"\necho ""\ntail -f /dev/null' > ~/start.sh && \
+# Create startup script that pulls models
+RUN echo '#!/bin/bash\n\
+echo "🐳 Ollama Code Docker Environment (Atomic Theme)"\n\
+echo ""\n\
+echo "Starting Ollama server..."\n\
+ollama serve > ~/.ollama/logs/ollama.log 2>&1 &\n\
+OLLAMA_PID=$!\n\
+\n\
+# Wait for Ollama to start\n\
+echo "Waiting for Ollama to start..."\n\
+for i in {1..30}; do\n\
+    if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then\n\
+        echo "✅ Ollama server started successfully"\n\
+        break\n\
+    fi\n\
+    sleep 1\n\
+done\n\
+\n\
+# Check if models need to be pulled\n\
+echo ""\n\
+echo "Checking for required models..."\n\
+\n\
+# Function to check and pull model\n\
+check_and_pull_model() {\n\
+    local model=$1\n\
+    if ! ollama list | grep -q "^$model"; then\n\
+        echo "📥 Pulling $model..."\n\
+        ollama pull $model\n\
+        if [ $? -eq 0 ]; then\n\
+            echo "✅ Successfully pulled $model"\n\
+        else\n\
+            echo "❌ Failed to pull $model"\n\
+        fi\n\
+    else\n\
+        echo "✅ $model already available"\n\
+    fi\n\
+}\n\
+\n\
+# Pull required models\n\
+check_and_pull_model "llama3.2:3b"\n\
+check_and_pull_model "qwen2.5:0.5b"\n\
+check_and_pull_model "deepseek-coder:6.7b"\n\
+check_and_pull_model "nomic-embed-text"\n\
+\n\
+echo ""\n\
+echo "Available models:"\n\
+ollama list\n\
+echo ""\n\
+echo "Ready! Run: ollama-code"\n\
+echo ""\n\
+\n\
+# Keep container running\n\
+tail -f /dev/null' > ~/start.sh && \
     chmod +x ~/start.sh
 
 WORKDIR /home/ollama/workspace
