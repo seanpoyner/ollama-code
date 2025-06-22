@@ -389,11 +389,14 @@ def main():
     """Main entry point for the CLI"""
     # Capture the user's working directory immediately
     import os
-    user_cwd = os.getcwd()
+    # First try to get the actual shell PWD, then fall back to Python's cwd
+    user_cwd = os.environ.get('PWD') or os.getcwd()
     os.environ['OLLAMA_CODE_USER_CWD'] = user_cwd
     # Debug output
     if '--verbose' in sys.argv or '-v' in sys.argv:
         print(f"[DEBUG] User CWD captured: {user_cwd}")
+        print(f"[DEBUG] PWD env var: {os.environ.get('PWD', 'Not set')}")
+        print(f"[DEBUG] Python cwd: {os.getcwd()}")
     
     parser = create_parser()
     args = parser.parse_args()

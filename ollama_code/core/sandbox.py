@@ -125,14 +125,11 @@ else:
     INITIAL_DIR = os.environ.get("PWD", os.getcwd())
 CURRENT_DIR = INITIAL_DIR
 
-# Debug: Show what we got from environment
-print(f"[DEBUG] USER_CWD from env: {{USER_CWD}}")
-print(f"[DEBUG] PWD from env: {{os.environ.get('PWD', 'Not set')}}")
-print(f"[DEBUG] Current directory before chdir: {{os.getcwd()}}")
-# Show all env vars that might help
-for key in sorted(os.environ.keys()):
-    if 'OLLAMA' in key or 'PWD' in key or 'CWD' in key:
-        print(f"[DEBUG] {{key}}: {{os.environ[key]}}")
+# Only show debug in verbose mode
+if os.environ.get('OLLAMA_CODE_VERBOSE'):
+    print(f"[DEBUG] USER_CWD from env: {{USER_CWD}}")
+    print(f"[DEBUG] PWD from env: {{os.environ.get('PWD', 'Not set')}}")
+    print(f"[DEBUG] Current directory before chdir: {{os.getcwd()}}")
 
 # Change to user's working directory
 os.chdir(INITIAL_DIR)
