@@ -50,7 +50,7 @@ RUN git clone https://github.com/seanpoyner/ollama-code.git && \
     pip install -e .
 
 # Create simple launcher
-RUN echo '#!/bin/bash\ncd /home/ollama/ollama-code\nsource venv/bin/activate\nexport PYTHONPATH=/home/ollama/ollama-code:$PYTHONPATH\npython -m ollama_code.cli "$@"' > ~/ollama-code.sh && \
+RUN echo '#!/bin/bash\n# Preserve the current working directory\nexport OLLAMA_CODE_USER_CWD="$PWD"\ncd /home/ollama/ollama-code\nsource venv/bin/activate\nexport PYTHONPATH=/home/ollama/ollama-code:$PYTHONPATH\npython -m ollama_code.cli "$@"' > ~/ollama-code.sh && \
     chmod +x ~/ollama-code.sh && \
     sudo ln -sf /home/ollama/ollama-code.sh /usr/local/bin/ollama-code
 

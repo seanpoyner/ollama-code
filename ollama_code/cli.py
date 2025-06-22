@@ -389,14 +389,35 @@ def main():
     """Main entry point for the CLI"""
     # Capture the user's working directory immediately
     import os
-    # First try to get the actual shell PWD, then fall back to Python's cwd
-    user_cwd = os.environ.get('PWD') or os.getcwd()
+    import subprocess
+    
+    # Try multiple methods to get the actual working directory
+    user_cwd = None
+    
+    # Method 1: Try PWD environment variable
+    user_cwd = os.environ.get('PWD')
+    
+    # Method 2: If PWD not available, try to get it from the shell
+    if not user_cwd:
+        try:
+            result = subprocess.run(['pwd'], capture_output=True, text=True, shell=True)
+            if result.returncode == 0:
+                user_cwd = result.stdout.strip()
+        except:
+            pass
+    
+    # Method 3: Fall back to Python's cwd (least reliable)
+    if not user_cwd:
+        user_cwd = os.getcwd()
+    
     os.environ['OLLAMA_CODE_USER_CWD'] = user_cwd
+    
     # Debug output
     if '--verbose' in sys.argv or '-v' in sys.argv:
         print(f"[DEBUG] User CWD captured: {user_cwd}")
         print(f"[DEBUG] PWD env var: {os.environ.get('PWD', 'Not set')}")
         print(f"[DEBUG] Python cwd: {os.getcwd()}")
+        print(f"[DEBUG] Shell pwd: {subprocess.run(['pwd'], capture_output=True, text=True, shell=True).stdout.strip() if subprocess.run(['pwd'], capture_output=True, text=True, shell=True).returncode == 0 else 'Failed'}")
     
     parser = create_parser()
     args = parser.parse_args()
