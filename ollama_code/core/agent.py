@@ -681,6 +681,18 @@ class OllamaCodeAgent:
             code_pattern = r'```python\s*(.*?)\n```'
             code_matches = re.findall(code_pattern, response, re.DOTALL)
             
+            # Debug: log what we're searching in
+            logger.debug(f"Searching for code blocks in response of length {len(response)}")
+            logger.debug(f"First 200 chars of response: {response[:200]}")
+            
+            # Also try alternative patterns if main pattern fails
+            if not code_matches:
+                # Try pattern with optional language after python
+                alt_pattern = r'```python[^\n]*\n(.*?)\n```'
+                code_matches = re.findall(alt_pattern, response, re.DOTALL)
+                if code_matches:
+                    logger.info(f"Found {len(code_matches)} code blocks with alternative pattern")
+            
             if code_matches:
                 console.print(f"\n🔧 [cyan]Found {len(code_matches)} code blocks to execute[/cyan]")
                 # Log extracted code for debugging
