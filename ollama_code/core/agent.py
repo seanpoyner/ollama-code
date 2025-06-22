@@ -696,8 +696,17 @@ class OllamaCodeAgent:
             if code_matches:
                 console.print(f"\n🔧 [cyan]Found {len(code_matches)} code blocks to execute[/cyan]")
                 # Log extracted code for debugging
-                for idx, code_block in enumerate(code_matches, 1):
-                    logger.debug(f"Code block {idx}: {code_block[:100]}...")
+            else:
+                # No code blocks found - show what we searched
+                console.print("\n⚠️ [yellow]No code blocks found to execute[/yellow]")
+                # Show a sample of what we're searching in for debugging
+                if logger.level <= logging.DEBUG or "--verbose" in sys.argv:
+                    sample = response[:500] if len(response) > 500 else response
+                    console.print(f"[dim]Searched in: {sample}...[/dim]")
+            
+            # Log extracted code blocks
+            for idx, code_block in enumerate(code_matches, 1):
+                logger.debug(f"Code block {idx}: {code_block[:100]}...")
             
             for i, code in enumerate(code_matches, 1):
                 try:
