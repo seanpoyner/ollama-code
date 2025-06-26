@@ -1,6 +1,17 @@
 """Main entry point for Ollama Code CLI"""
 
 import sys
+import io
+import os
+
+# Set UTF-8 encoding for Windows to prevent Unicode errors
+if sys.platform == 'win32':
+    # Set console code page to UTF-8
+    os.system('chcp 65001 > nul 2>&1')
+    # Reconfigure stdout and stderr with UTF-8 encoding
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from rich.console import Console
 
 # Early dependency check before importing other modules

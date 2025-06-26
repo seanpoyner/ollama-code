@@ -1,17 +1,19 @@
 {
-  "os_type": "wsl",
-  "os_name": "Linux",
-  "os_version": "#1 SMP Tue Nov 5 00:21:55 UTC 2024",
-  "os_release": "5.15.167.4-microsoft-standard-WSL2",
-  "machine": "x86_64",
-  "processor": "x86_64",
-  "python_version": "3.12.3",
-  "shell": "bash",
+  "os_type": "windows",
+  "os_name": "Windows",
+  "os_version": "10.0.26100",
+  "os_release": "11",
+  "machine": "AMD64",
+  "processor": "AMD64 Family 26 Model 36 Stepping 0, AuthenticAMD",
+  "python_version": "3.13.3",
+  "shell": "cmd",
   "shell_command": [
-    "/bin/bash",
-    "-c"
+    "cmd",
+    "/c"
   ],
-  "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.39",
-  "home_directory": "/home/sean",
-  "current_directory": "/mnt/c/Users/seanp/.ollama/ollama-code"
+  "platform": "Windows-11-10.0.26100-SP0",
+  "home_directory": "C:\\Users\\seanp",
+  "current_directory": "C:\\Users\\seanp\\.ollama\\ollama-code",
+  "windows_version": "11",
+  "windows_edition": "Core"
 }

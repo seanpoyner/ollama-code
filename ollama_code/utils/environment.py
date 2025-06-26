@@ -45,7 +45,8 @@ class EnvironmentDetector:
             # Check if PowerShell is available
             try:
                 result = subprocess.run(['powershell', '-Command', 'echo test'], 
-                                     capture_output=True, text=True, timeout=2)
+                                     capture_output=True, text=True, timeout=2,
+                                     encoding='utf-8', errors='replace')
                 if result.returncode == 0:
                     return 'powershell'
             except:
@@ -112,7 +113,8 @@ class EnvironmentDetector:
             # Try to get WSL version
             try:
                 result = subprocess.run(['wsl', '--version'], 
-                                     capture_output=True, text=True, timeout=2)
+                                     capture_output=True, text=True, timeout=2,
+                                     encoding='utf-8', errors='replace')
                 if result.returncode == 0:
                     info['wsl_version'] = result.stdout.strip()
             except:

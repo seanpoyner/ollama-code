@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import sys
 import os
+import subprocess
 from pathlib import Path
 from typing import Optional
 import warnings
@@ -33,12 +34,30 @@ def get_ollama_client():
         return ollama.Client(host=host)
     
     # Check if we're in WSL
-    if 'microsoft' in os.uname().release.lower() or 'WSL' in os.uname().release:
+    is_wsl = False
+    try:
+        # Check for WSL using platform module which works on all OS
+        import platform
+        if platform.system() == 'Linux':
+            # On Linux, we can check /proc/version
+            try:
+                with open('/proc/version', 'r') as f:
+                    if 'microsoft' in f.read().lower():
+                        is_wsl = True
+            except:
+                pass
+    except:
+        pass
+    
+    if is_wsl:
         # We're in WSL, try to connect to Windows host
         # Get the Windows host IP
         try:
-            import subprocess
-            result = subprocess.run(['ip', 'route', 'show'], capture_output=True, text=True)
+            result = subprocess.run(['ip', 'route', 'show'], 
+                                  capture_output=True, 
+                                  text=True,
+                                  encoding='utf-8',
+                                  errors='replace')
             for line in result.stdout.split('\n'):
                 if 'default' in line:
                     windows_ip = line.split()[2]
@@ -400,7 +419,12 @@ def main():
     # Method 2: If PWD not available, try to get it from the shell
     if not user_cwd:
         try:
-            result = subprocess.run(['pwd'], capture_output=True, text=True, shell=True)
+            result = subprocess.run(['pwd'], 
+                                  capture_output=True, 
+                                  text=True, 
+                                  shell=True,
+                                  encoding='utf-8',
+                                  errors='replace')
             if result.returncode == 0:
                 user_cwd = result.stdout.strip()
         except:
@@ -417,7 +441,17 @@ def main():
         print(f"[DEBUG] User CWD captured: {user_cwd}")
         print(f"[DEBUG] PWD env var: {os.environ.get('PWD', 'Not set')}")
         print(f"[DEBUG] Python cwd: {os.getcwd()}")
-        print(f"[DEBUG] Shell pwd: {subprocess.run(['pwd'], capture_output=True, text=True, shell=True).stdout.strip() if subprocess.run(['pwd'], capture_output=True, text=True, shell=True).returncode == 0 else 'Failed'}")
+        try:
+            pwd_result = subprocess.run(['pwd'], 
+                                      capture_output=True, 
+                                      text=True, 
+                                      shell=True,
+                                      encoding='utf-8',
+                                      errors='replace')
+            shell_pwd = pwd_result.stdout.strip() if pwd_result.returncode == 0 else 'Failed'
+        except:
+            shell_pwd = 'Failed'
+        print(f"[DEBUG] Shell pwd: {shell_pwd}")
     
     parser = create_parser()
     args = parser.parse_args()
